@@ -1,0 +1,35 @@
+ifdef RVX_COMPILER_BASIC
+CROSS_COMPILE = ${RVX_COMPILER_BASIC}
+RISCV_ARCH=rv32imafc
+RISCV_ABI=ilp32f
+CFLAGS += -march=${RISCV_ARCH} -mabi=${RISCV_ABI}
+LD_FLAGS += -march=${RISCV_ARCH} -mabi=${RISCV_ABI}
+endif
+
+ifdef RVX_COMPILER_SIFIVE
+CROSS_COMPILE = ${RVX_COMPILER_SIFIVE}
+RISCV_ARCH=rv32imafc
+RISCV_ABI=ilp32f
+CFLAGS += -march=${RISCV_ARCH} -mabi=${RISCV_ABI}
+LD_FLAGS += -march=${RISCV_ARCH} -mabi=${RISCV_ABI}
+endif
+
+ifdef RVX_COMPILER_XPACK
+CROSS_COMPILE = ${RVX_COMPILER_XPACK}
+RISCV_ARCH=rv32imafc_zicsr_zifencei
+RISCV_ABI=ilp32f
+CFLAGS += -march=${RISCV_ARCH} -mabi=${RISCV_ABI} -mtune=rocket
+LD_FLAGS += -march=${RISCV_ARCH} -mabi=${RISCV_ABI} -mtune=rocket -Wl,--no-warn-rwx-segments
+endif
+
+INCLUDES += -I${RVX_SSW_HOME}/core/rocket_opt
+ASM_SRC += ${RVX_SSW_HOME}/core/rocket_opt/start.S
+ifeq ($(USE_FREERTOS),true)
+	ASM_SRC += ${RVX_SSW_HOME}/core/rocket_opt/portasm.S
+else
+	ASM_SRC += ${RVX_SSW_HOME}/core/rocket_opt/entry.S
+endif
+C_SRC += ${RVX_SSW_HOME}/core/rocket_opt/core_dependent.c
+
+include ${RVX_SSW_HOME}/riscv/riscv_compile.mh
+
