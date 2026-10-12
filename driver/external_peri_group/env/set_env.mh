@@ -1,0 +1,7 @@
+include ${RVX_SSW_HOME}/driver/uart/env/set_env.mh
+include ${RVX_SSW_HOME}/driver/spi/env/set_env.mh
+include ${RVX_SSW_HOME}/driver/i2c/env/set_env.mh
+include ${RVX_SSW_HOME}/driver/gpio/env/set_env.mh
+
+C_SRC += $(wildcard ${RVX_SSW_HOME}/driver/external_peri_group/src/*.c)
+INCLUDES += -I${RVX_SSW_HOME}/driver/external_peri_group/src

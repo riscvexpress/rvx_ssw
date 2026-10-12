@@ -1,0 +1,17 @@
+ifdef RVX_COMPILER_BASIC
+CROSS_COMPILE = ${RVX_COMPILER_BASIC}
+RISCV_ARCH=rv32im
+RISCV_ABI=ilp32
+CFLAGS += -march=${RISCV_ARCH} -mabi=${RISCV_ABI}
+LD_FLAGS += -march=${RISCV_ARCH} -mabi=${RISCV_ABI}
+endif
+
+ifdef RVX_COMPILER_XPACK
+CROSS_COMPILE = ${RVX_COMPILER_XPACK}
+RISCV_ARCH=rv32im_zicsr
+RISCV_ABI=ilp32
+CFLAGS += -march=${RISCV_ARCH} -mabi=${RISCV_ABI} -mtune=rocket
+LD_FLAGS += -march=${RISCV_ARCH} -mabi=${RISCV_ABI} -mtune=rocket -Wl,--no-warn-rwx-segments
+endif
+
+include ${RVX_SSW_HOME}/riscv/env/set_env.mh

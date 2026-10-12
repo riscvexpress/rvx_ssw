@@ -1,0 +1,14 @@
+C_SRC += $(wildcard ${RVX_SSW_HOME}/driver/wifi/src/*.c)
+C_SRC += $(wildcard ${RVX_SSW_HOME}/driver/wifi/src/*/*.c)
+C_SRC += $(wildcard ${RVX_SSW_HOME}/driver/wifi/src/*/*/*.c)
+CXX_SRC += $(wildcard ${RVX_SSW_HOME}/driver/wifi/src/*.cpp)
+CXX_SRC += $(wildcard ${RVX_SSW_HOME}/driver/wifi/src/*/*.cpp)
+CXX_SRC += $(wildcard ${RVX_SSW_HOME}/driver/wifi/src/*/*/*.cpp)
+INCLUDES += -I${RVX_SSW_HOME}/driver/wifi/include
+INCLUDES += -I${RVX_SSW_HOME}/driver/wifi/include/DEWFcK
+INCLUDES += -I${RVX_SSW_HOME}/driver/wifi/include/DEIPcK
+INCLUDES += -I${RVX_SSW_HOME}/driver/wifi/include/DEIPcK/utility
+INCLUDES += -I${RVX_SSW_HOME}/driver/wifi/include/MRF24G
+INCLUDES += -I${RVX_SSW_HOME}/driver/wifi/include/MRF24G/utility
+INCLUDES += -I${RVX_SSW_HOME}/driver/wifi/include/MRF24G/utility/ud_inc/internal
+INCLUDES += -I${RVX_SSW_HOME}/driver/wifi/include/MRF24G/utility/ud_inc/shared

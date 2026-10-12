@@ -1,0 +1,3 @@
+ASM_SRC += $(wildcard ${RVX_SSW_HOME}/system/src/*.S)
+C_SRC += $(wildcard ${RVX_SSW_HOME}/system/src/*.c)
+INCLUDES += -I${RVX_SSW_HOME}/system/src

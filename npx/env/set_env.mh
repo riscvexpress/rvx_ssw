@@ -1,0 +1,4 @@
+C_SRC += $(wildcard ${RVX_SSW_HOME}/npx/src/*.c)
+INCLUDES += -I${RVX_SSW_HOME}/npx/src
+include ${RVX_SSW_HOME}/third_party/sptk/env/set_env.mh
+DEFINE_CFLAGS += -DUSE_NPX
