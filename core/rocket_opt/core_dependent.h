@@ -11,6 +11,8 @@
 #include "ervp_interrupt.h"
 
 #define BIG_ENDIAN_ACCESS 0
+#define INCLUDE_MCYCLE
+#include "ervp_mcycle.h"
 
 static inline int get_local_id()
 {

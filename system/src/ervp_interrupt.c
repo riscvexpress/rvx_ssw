@@ -3,6 +3,7 @@
 
 #include "ervp_printf.h"
 #include "ervp_core_id.h"
+#include "ervp_per_core.h"
 #include "ervp_multicore_synch.h"
 #include "ervp_external_peri_group_memorymap.h"
 #include "frvp_plic_memorymap_offset.h"
@@ -45,7 +46,7 @@ static void handle_external_interrupt();
 /* body */
 //////////
 
-static function_ptr_t software_isr[NUM_CORE_PHYSICAL];
+static function_ptr_t software_isr PER_CORE_DATA;
 
 static inline unsigned int sw_itr_cmd(unsigned int cmd)
 {
@@ -64,14 +65,14 @@ void clear_software_interrupt(int core_id)
 
 void register_isr_software(function_ptr_t isr)
 {
-	software_isr[EXCLUSIVE_ID] = isr;
+	PER_CORE(software_isr) = isr;
 }
 
 static void handle_software_interrupt()
 {
 	function_ptr_t isr;
 	clear_software_interrupt(EXCLUSIVE_ID);
-	isr = software_isr[EXCLUSIVE_ID];
+	isr = PER_CORE(software_isr);
 	if(isr!=0)
 		isr();
 }

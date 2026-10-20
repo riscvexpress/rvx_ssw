@@ -11,8 +11,11 @@
 #include "ervp_memory_allocator.h"
 #include "ervp_variable_allocation.h"
 #include "ervp_core_id.h"
+#include "ervp_per_core.h"
 
-static memory_allocator_t default_allocator[NUM_CORE] DATA_BSS;
+#ifdef USE_REUSE_MEMORY_ALLOCATOR
+static memory_allocator_t default_allocator PER_CORE_DATA;
+#endif
 
 __attribute__((weak)) void *malloc_rvx(size_t size)
 {
@@ -22,7 +25,7 @@ __attribute__((weak)) void *malloc_rvx(size_t size)
 #ifdef USE_REUSE_MEMORY_ALLOCATOR
     memory_block_info_t *block;
     size_t extended_size = ALIGN_UP_POW2(size + MEMORY_BLOCK_INFO_SIZE, DATA_ALIGN_SIZE);
-    block = memory_allocator_pop(&(default_allocator[EXCLUSIVE_ID]), extended_size);
+    block = memory_allocator_pop(&PER_CORE(default_allocator), extended_size);
     if (block == NULL)
     {
       block = (memory_block_info_t *)_alloc_new_memory_space(extended_size);
@@ -63,7 +66,7 @@ void free_rvx(void *ptr)
 #ifdef USE_REUSE_MEMORY_ALLOCATOR
   memory_block_info_t *block;
   block = (void *)(((unsigned int)ptr) - MEMORY_BLOCK_INFO_SIZE);
-  memory_allocator_push(&(default_allocator[EXCLUSIVE_ID]), block);
+  memory_allocator_push(&PER_CORE(default_allocator), block);
 #if 0
     printf("\n[free] %p %d", ptr, block->size);
 #endif
@@ -72,7 +75,6 @@ void free_rvx(void *ptr)
 
 void *realloc_rvx(void *ptr, size_t new_size)
 {
-  assert(default_allocator != NULL);
   memory_block_info_t *block;
   void *new_ptr;
   new_ptr = malloc_rvx(new_size);

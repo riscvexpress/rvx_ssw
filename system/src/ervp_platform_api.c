@@ -20,6 +20,7 @@
 #include "ervp_tick.h"
 #include "ervp_delay.h"
 #include "ervp_variable_allocation.h"
+#include "ervp_per_core.h"
 #include "ervp_mmiox1.h"
 #include "ervp_thread.h"
 #include "ervp_memory_dump.h"
@@ -156,6 +157,7 @@ void _init_platform()
 #endif
 	const int core_id = EXCLUSIVE_ID;
 	int imp_type;
+	init_handle_trap();
 	if (core_id == 0)
 	{
 		uart_init();
@@ -189,6 +191,9 @@ void _init_platform()
 		printf_must("\n[RVX/MRAM] %d", access_cycle);
 #endif
 		printf_must("\n");
+#ifdef INCLUDE_MCYCLE
+		assert_must(get_mcycle32() != get_mcycle32());
+#endif
 
 		init_system_tick();
 		init_core_tick();
@@ -210,12 +215,9 @@ void _init_platform()
 		offchip_mram_profile_start(0, 0);
 		offchip_mram_profile_start(1, 0);
 #endif
-		if (!is_sim())
-		{
-			profiling_init();
-			profiling_start("main");
-		}
 	}
+	profiling_init();
+	profiling_start("main");
 }
 
 void worker_core_entry()
@@ -303,8 +305,18 @@ void _init_heap()
 	}
 }
 
+void _init_per_core()
+{
+	const uint8_t *src = (const uint8_t *)(&_percore_start_);
+	const uint8_t *src_end = (const uint8_t *)(&_percore_end_);
+	uint8_t *dst = (uint8_t *)(((uintptr_t)src) + __get_per_core_offset());
+	while (src < src_end)
+		*dst++ = *src++;
+}
+
 void _init_each_core()
 {
+	_init_per_core();
 	init_core();
 #ifdef INCLUDE_TCACHING
 	tcaching_init();
@@ -318,7 +330,6 @@ void _init_each_core()
 #endif
 #endif
 	init_cache(cacheable_start, cacheable_last);
-	init_handle_trap();
 }
 
 void _stop_cpu()
@@ -334,15 +345,13 @@ static inline void terminate_simulation()
 
 void exit_platform()
 {
+	profiling_end("main");
+	flush_cache();
 	unsigned int auto_id = get_proc_auto_id();
 	if (auto_id == ((2 * NUM_CORE_PHYSICAL) - 1))
 	{
-		if (!is_sim())
-		{
-			profiling_end("main");
-			profiling_print();
-			printf_must("\n\n[RVX/END]\n");
-		}
+		profiling_print();
+		printf_must("\n\n[RVX/END]\n");
 #ifdef USE_OFFCHIP_MRAM_PROFILER
 		flush_cache();
 		offchip_mram_profile_finish(-1);

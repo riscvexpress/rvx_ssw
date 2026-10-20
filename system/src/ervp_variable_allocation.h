@@ -17,6 +17,7 @@
 #define PRIVATE_DATA
 #endif
 
+#define PER_CORE_DATA __attribute__ ((section(".percore")))
 #define NON_BSS __attribute__ ((section(".data")))
 #define DATA_BSS __attribute__ ((section(".bss")))
 #define BIG_DATA __attribute__ ((section(".bigdata")))

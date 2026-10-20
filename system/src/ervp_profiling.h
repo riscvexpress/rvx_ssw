@@ -3,6 +3,7 @@
 
 #include "platform_info.h"
 #include "uthash.h"
+#include "ervp_per_core.h"
 
 typedef struct
 {
@@ -49,14 +50,14 @@ static inline void profiling_print() {};
     profiling_end_by_name(name); \
   } while (0)
 
-#define PROFILING_START()                     \
-  static profile_t *section = NULL;           \
-  {                                           \
-    if (section == NULL)                      \
-      section = profiling_register(__func__); \
-  }                                           \
-  profiling_start_by_section(section)
+#define PROFILING_START()                                   \
+  static profile_t *section PER_CORE_DATA = NULL;           \
+  {                                                         \
+    if (PER_CORE(section) == NULL)                          \
+      PER_CORE(section) = profiling_register(__func__);     \
+  }                                                         \
+  profiling_start_by_section(PER_CORE(section))
 
-#define PROFILING_END() profiling_end_by_section(section)
+#define PROFILING_END() profiling_end_by_section(PER_CORE(section))
 
 #endif

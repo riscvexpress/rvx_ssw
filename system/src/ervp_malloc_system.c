@@ -1,5 +1,6 @@
 #include "ervp_malloc_system.h"
 #include "ervp_variable_allocation.h"
+#include "ervp_per_core.h"
 
 volatile uintptr_t heap_sram_addr NOTCACHED_DATA = 0;
 volatile uintptr_t heap_sram_size NOTCACHED_DATA = 0;
@@ -29,7 +30,7 @@ void *palloc_largeram_backpart(size_t size, size_t align_size)
   return (void *)ptr;
 }
 
-static ervp_private_cacheline_t private_cacheline[NUM_CORE] DATA_BSS;
+static ervp_private_cacheline_t private_cacheline PER_CORE_DATA;
 
 #if defined(CACHE_LINE_SIZE)
 static const int ALIGN_SIZE = CACHE_LINE_SIZE;
@@ -65,7 +66,7 @@ static uintptr_t _alloc_cacheline(size_t aligned_size)
 void *ppalloc(size_t size)
 {
   assert(size > 0);
-  ervp_private_cacheline_t *cacheline = &(private_cacheline[EXCLUSIVE_ID]);
+  ervp_private_cacheline_t *cacheline = &PER_CORE(private_cacheline);
   if (cacheline->remaining_size < size)
   {
     size_t aligned_size = ALIGN_UP_POW2(size, ALIGN_SIZE);

@@ -7,8 +7,9 @@
 #include "ervp_malloc.h"
 #include "ervp_core_id.h"
 #include "ervp_platform_controller_api.h"
+#include "ervp_per_core.h"
 
-extern char trackedvar_track_enable[NUM_CORE];
+extern char trackedvar_track_enable;
 
 #ifdef USE_SMART_FLUSH
 
@@ -18,13 +19,13 @@ void _release_delayed_free_list();
 static inline void trackedvar_track_start()
 {
   _trackedvar_flush();
-  trackedvar_track_enable[EXCLUSIVE_ID] = 1;
+  PER_CORE(trackedvar_track_enable) = 1;
 }
 
 static inline void trackedvar_track_end()
 {
   _release_delayed_free_list();
-  trackedvar_track_enable[EXCLUSIVE_ID] = 0;
+  PER_CORE(trackedvar_track_enable) = 0;
 }
 
 int trackedvar_add(void *ptr, int dirty);

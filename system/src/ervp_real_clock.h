@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 uint64_t get_real_clock_tick();
+uint32_t get_real_clock_tick32();
 static inline uint64_t get_mtime(){	return get_real_clock_tick(); };
 void print_real_clock_tick();
 void print_real_clock_dhms();

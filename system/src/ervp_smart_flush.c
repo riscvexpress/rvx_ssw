@@ -11,40 +11,40 @@
 #include "npx_spm.h"
 #endif
 
-char trackedvar_track_enable[NUM_CORE] DATA_BSS;
+char trackedvar_track_enable PER_CORE_DATA;
 
 #ifdef USE_SMART_FLUSH
 
-static utset trackedvar_track[NUM_CORE] DATA_BSS;
-static memory_allocator_t smart_allocator[NUM_CORE] DATA_BSS;
+static utset trackedvar_track PER_CORE_DATA;
+static memory_allocator_t smart_allocator PER_CORE_DATA;
 
-static unsigned short free_list_max_size[NUM_CORE] DATA_BSS;
-static unsigned short free_list_current_size[NUM_CORE] DATA_BSS;
-static void **delayed_free_list[NUM_CORE] DATA_BSS;
+static unsigned short free_list_max_size PER_CORE_DATA;
+static unsigned short free_list_current_size PER_CORE_DATA;
+static void **delayed_free_list PER_CORE_DATA;
 
 static inline void increase_delayed_free_list()
 {
-  if (free_list_max_size[EXCLUSIVE_ID] == 0)
+  if (PER_CORE(free_list_max_size) == 0)
   {
-    free_list_max_size[EXCLUSIVE_ID] = 16;
-    delayed_free_list[EXCLUSIVE_ID] = malloc(free_list_max_size[EXCLUSIVE_ID] * sizeof(void *));
+    PER_CORE(free_list_max_size) = 16;
+    PER_CORE(delayed_free_list) = malloc(PER_CORE(free_list_max_size) * sizeof(void *));
   }
   else
   {
-    void *old_ptr = delayed_free_list[EXCLUSIVE_ID];
-    int old_size = free_list_max_size[EXCLUSIVE_ID] * sizeof(void *);
-    free_list_max_size[EXCLUSIVE_ID] = free_list_max_size[EXCLUSIVE_ID] << 1;
-    delayed_free_list[EXCLUSIVE_ID] = malloc(free_list_max_size[EXCLUSIVE_ID] * sizeof(void *));
-    memcpy_rvx(delayed_free_list[EXCLUSIVE_ID], old_ptr, old_size);
+    void *old_ptr = PER_CORE(delayed_free_list);
+    int old_size = PER_CORE(free_list_max_size) * sizeof(void *);
+    PER_CORE(free_list_max_size) = PER_CORE(free_list_max_size) << 1;
+    PER_CORE(delayed_free_list) = malloc(PER_CORE(free_list_max_size) * sizeof(void *));
+    memcpy_rvx(PER_CORE(delayed_free_list), old_ptr, old_size);
     free_rvx(old_ptr);
   }
 }
 
 static inline void add_block_to_delayed_free_list(void *ptr)
 {
-  if (free_list_current_size[EXCLUSIVE_ID] == free_list_max_size[EXCLUSIVE_ID])
+  if (PER_CORE(free_list_current_size) == PER_CORE(free_list_max_size))
     increase_delayed_free_list();
-  delayed_free_list[EXCLUSIVE_ID][free_list_current_size[EXCLUSIVE_ID]++] = ptr;
+  PER_CORE(delayed_free_list)[PER_CORE(free_list_current_size)++] = ptr;
 }
 
 static inline void _free_really(void *ptr)
@@ -54,16 +54,16 @@ static inline void _free_really(void *ptr)
     return;
 #endif
   memory_block_info_t *block = (memory_block_info_t *)((uintptr_t)ptr - MEMORY_BLOCK_INFO_SIZE);
-  memory_allocator_push(&(smart_allocator[EXCLUSIVE_ID]), block);
+  memory_allocator_push(&(PER_CORE(smart_allocator)), block);
 }
 
 void _release_delayed_free_list()
 {
-  if (free_list_current_size[EXCLUSIVE_ID] > 0)
+  if (PER_CORE(free_list_current_size) > 0)
   {
-    for (int i = 0; i < free_list_current_size[EXCLUSIVE_ID]; i++)
-      _free_really(delayed_free_list[EXCLUSIVE_ID][i]);
-    free_list_current_size[EXCLUSIVE_ID] = 0;
+    for (int i = 0; i < PER_CORE(free_list_current_size); i++)
+      _free_really(PER_CORE(delayed_free_list)[i]);
+    PER_CORE(free_list_current_size) = 0;
   }
 }
 
@@ -72,10 +72,10 @@ int trackedvar_add(void *ptr, int dirty)
   int inserted = 0;
 
   // needs region check
-  if (trackedvar_track_enable[EXCLUSIVE_ID])
+  if (PER_CORE(trackedvar_track_enable))
   {
     if (is_cacheable_region(ptr))
-      inserted = utset_add(&(trackedvar_track[EXCLUSIVE_ID]), (uintptr_t)ptr);
+      inserted = utset_add(&(PER_CORE(trackedvar_track)), (uintptr_t)ptr);
   }
   return inserted;
 }
@@ -83,13 +83,13 @@ int trackedvar_add(void *ptr, int dirty)
 // Without checking trackedvar_track_enable[EXCLUSIVE_ID]
 static inline int _trackedvar_exist(void *ptr)
 {
-  return utset_exist(&(trackedvar_track[EXCLUSIVE_ID]), (uintptr_t)ptr);
+  return utset_exist(&(PER_CORE(trackedvar_track)), (uintptr_t)ptr);
 }
 
 int trackedvar_exist(void *ptr)
 {
   int exist = 1;
-  if (trackedvar_track_enable[EXCLUSIVE_ID])
+  if (PER_CORE(trackedvar_track_enable))
     exist = _trackedvar_exist(ptr);
   return exist;
 }
@@ -99,14 +99,14 @@ void _trackedvar_flush()
   if (!is_sim())
     printf_function();
   // order is important: first clear the set, then flush the cache
-  utset_clear(&(trackedvar_track[EXCLUSIVE_ID]));
+  utset_clear(&(PER_CORE(trackedvar_track)));
   flush_cache();
 }
 
 int trackedvar_smart_flush(int region, ...)
 {
   int is_cached = 1;
-  if (trackedvar_track_enable[EXCLUSIVE_ID])
+  if (PER_CORE(trackedvar_track_enable))
   {
     va_list args;
     va_start(args, region);
@@ -132,7 +132,7 @@ int trackedvar_smart_flush(int region, ...)
 
 void trackedvar_print()
 {
-  utset_print(&(trackedvar_track[EXCLUSIVE_ID]));
+  utset_print(&(PER_CORE(trackedvar_track)));
 }
 
 void *trackedvar_malloc(size_t size)
@@ -143,7 +143,7 @@ void *trackedvar_malloc(size_t size)
   memory_block_info_t *block = NULL;
 
 #ifdef USE_REUSE_MEMORY_ALLOCATOR
-  block = memory_allocator_pop(&(smart_allocator[EXCLUSIVE_ID]), extended_size);
+  block = memory_allocator_pop(&(PER_CORE(smart_allocator)), extended_size);
 #endif
   if (block == NULL)
   {
@@ -162,7 +162,7 @@ void *trackedvar_malloc(size_t size)
   assert(block);
   void *ptr = (void *)((uintptr_t)block + MEMORY_BLOCK_INFO_SIZE);
   assert(is_aligned_to_cacheline((uintptr_t)ptr));
-  if (trackedvar_track_enable[EXCLUSIVE_ID])
+  if (PER_CORE(trackedvar_track_enable))
     assert(!_trackedvar_exist(ptr));
   return ptr;
 }
@@ -172,7 +172,7 @@ void trackedvar_free(void *ptr)
   assert(ptr);
 #ifdef USE_REUSE_MEMORY_ALLOCATOR
   assert(is_aligned_to_cacheline((uintptr_t)ptr));
-  if (trackedvar_track_enable[EXCLUSIVE_ID])
+  if (PER_CORE(trackedvar_track_enable))
     add_block_to_delayed_free_list(ptr);
   else
     _free_really(ptr);

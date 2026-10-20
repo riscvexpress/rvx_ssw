@@ -71,7 +71,18 @@
 	jal _init_heap
 .endm
 
+.macro SET_PER_CORE_OFFSET
+	la t0, _percore_start_
+	la t1, _percore_end_
+	sub t1, t1, t0
+	mul t1, t1, a0
+	la tp, _percore_area_start_
+	add tp, tp, t1
+	sub tp, tp, t0
+.endm
+
 .macro INIT_EACH_CORE
+	SET_PER_CORE_OFFSET
 	jal _init_each_core
 .endm
 

@@ -84,6 +84,7 @@
 #include <unistd.h>
 
 #include "ervp_timer.h"
+#include "ervp_per_core.h"
 
 /* Each task maintains its own interrupt status in the critical nesting
 variable. */
@@ -217,6 +218,7 @@ StackType_t *pxPortInitialiseStack( StackType_t *pxTopOfStack, TaskFunction_t px
 	pxTopOfStack -=9;
 	*pxTopOfStack = (portSTACK_TYPE)prvTaskExitError; /* Register ra */
 	pxTopOfStack--;
+	pxTopOfStack[4] = (portSTACK_TYPE)__get_per_core_offset();
 
 	return pxTopOfStack;
 }

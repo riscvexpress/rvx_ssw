@@ -64,7 +64,7 @@ static inline void __delay_by_timer(unsigned int time_in_unit, unsigned int scal
 	unsigned int upper, lower;
 	unsigned int i;
 	upper = time_in_unit >> bw_lower;
-	lower = ((time_in_unit << bw_lower) >> bw_lower);
+	lower = time_in_unit & ((1<<bw_lower)-1);
 	for(i=0; i<upper; i++)
 	{
 		delay_us_by_timer((1<<bw_lower)*scale);
