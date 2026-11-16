@@ -127,24 +127,24 @@ static inline const char* debug_get_file_name_only(const char* s)
     if(c==0)
       break;
     p++;
-    if(c=='/')
+    if((c=='/') || (c=='\\'))
       last = p;
   }
   return last;
 }
 
-#define printf_function() do{ printf("\n[%s]\n", __func__); } while(0)
-#define print_line() do{ printf("\n[%s @%d]", debug_get_file_name_only(__FILE__), __LINE__); } while(0)
+#define printf_function() do{ printf("\n[DEBUG/%s]\n", __func__); } while(0)
+#define print_line() do{ printf("\n[DEBUG/%s @%d]", debug_get_file_name_only(__FILE__), __LINE__); } while(0)
 
-#define debug_printx(var) do{ if(ready_to_print) printf_must("\n[%s @%d] %s 0x%08x", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
-#define debug_printd(var) do{ if(ready_to_print) printf_must("\n[%s @%d] %s %d", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
-#define debug_printu(var) do{ if(ready_to_print) printf_must("\n[%s @%d] %s %u", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
-#define debug_printf(var) do{ if(ready_to_print) printf_must("\n[%s @%d] %s %f", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
-#define debug_printc(var) do{ if(ready_to_print) printf_must("\n[%s @%d] %s %c", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
-#define debug_prints(var) do{ if(ready_to_print) printf_must("\n[%s @%d] %s %s", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
+#define debug_printx(var) do{ if(ready_to_print) printf_must("\n[DEBUG/%s @%d] %s 0x%08x", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
+#define debug_printd(var) do{ if(ready_to_print) printf_must("\n[DEBUG/%s @%d] %s %d", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
+#define debug_printu(var) do{ if(ready_to_print) printf_must("\n[DEBUG/%s @%d] %s %u", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
+#define debug_printf(var) do{ if(ready_to_print) printf_must("\n[DEBUG/%s @%d] %s %f", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
+#define debug_printc(var) do{ if(ready_to_print) printf_must("\n[DEBUG/%s @%d] %s %c", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
+#define debug_prints(var) do{ if(ready_to_print) printf_must("\n[DEBUG/%s @%d] %s %s", debug_get_file_name_only(__FILE__), __LINE__, #var, var); } while(0)
 
 #define debug_printn() do{ if(ready_to_print) printf_must("\n"); } while(0)
-#define debug_print_line() do{ if(ready_to_print) printf_must("\n[%s @%d]", debug_get_file_name_only(__FILE__), __LINE__); } while(0)
+#define debug_print_line() do{ if(ready_to_print) printf_must("\n[DEBUG/%s @%d]", debug_get_file_name_only(__FILE__), __LINE__); } while(0)
 
 #ifdef __cplusplus
 }

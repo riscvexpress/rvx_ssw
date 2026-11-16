@@ -1,4 +1,5 @@
 #include "platform_info.h"
+#include "ervp_log.h"
 #include "ervp_malloc.h"
 #include "ervp_variable_allocation.h"
 #include "npx_spm.h"
@@ -71,8 +72,7 @@ static int lack_amount NOTCACHED_DATA = 0;
 __attribute__((weak)) void npx_spm_report()
 {
 #ifndef NDEBUG
-	printf_function();
-	printf("lack_amount: %d", lack_amount);
+	rvx_log_debug("NPX", "SPM lack_amount: %d", lack_amount);
 #endif
 }
 
@@ -118,7 +118,7 @@ __attribute__((weak)) void *npx_spm_malloc(size_t size)
 		else
 		{
 #ifndef NDEBUG
-			printf("\nBuffer is not enough : %d", size);
+			rvx_log_warning("NPX", "SPM buffer is not enough: %d", size);
 			if (size > lack_amount)
 				lack_amount = size;
 #endif

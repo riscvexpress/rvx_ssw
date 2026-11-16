@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "platform_info.h"
 #include "ervp_external_peri_group_memorymap.h"
-#include "frvp_spi.h"
+#include "trvp_spi.h"
 #include "orvp_i2c.h"
 
 #include "arducam_regs.h"

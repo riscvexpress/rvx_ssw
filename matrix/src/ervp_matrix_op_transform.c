@@ -360,7 +360,7 @@ ervp_hwtask_busy_fx_t matrix_conv_sharedinput_im2col_tf(ervp_mop_mapping_t *mop_
 
   ervp_mconv_option_t conv_option;
   conv_option.value = conv_option_value;
-  _im2col_reordering(input_info, kernel_info_list[0]->num_row, kernel_info_list[0]->num_col, mconv_option_get_pad_option(conv_option).br.num_rowd, mconv_option_get_pad_option(conv_option).br.num_cold, conv_option.br.stride_m1 + 1, conv_option.br.stride_m1 + 1, reordered_input_info);
+  _im2col_reordering(input_info, kernel_info_list[0]->num_row, kernel_info_list[0]->num_col, mconv_option_get_pad_option(conv_option).br.num_top, mconv_option_get_pad_option(conv_option).br.num_left, conv_option.br.stride_m1 + 1, conv_option.br.stride_m1 + 1, reordered_input_info);
 
   ervp_mop_option_t mop_option;
   mop_option.value = 0;
@@ -398,35 +398,35 @@ ervp_hwtask_busy_fx_t matrix_padfill2copy_tf(ervp_mop_mapping_t *mop_mapping, co
     assert(!matrix_datatype_is_float(a->datatype));
     ErvpMatrixInfo temp = *c;
     // rowd
-    if (pad_option.br.num_rowd > 0)
+    if (pad_option.br.num_top > 0)
     {
-      temp.num_row = pad_option.br.num_rowd;
+      temp.num_row = pad_option.br.num_top;
       // temp.num_col = c->num_col;
       // temp.addr = matrix_get_element_addr(c, 0, 0);
       mop_mapping->matrix_fill_fixed(mop_mapping, &temp, 0);
     }
     // rowu
-    if (pad_option.br.num_rowu > 0)
+    if (pad_option.br.num_bottom > 0)
     {
-      temp.num_row = pad_option.br.num_rowu;
+      temp.num_row = pad_option.br.num_bottom;
       // temp.num_col = c->num_col;
-      temp.addr = matrix_get_element_addr(c, c->num_row - pad_option.br.num_rowu, 0);
+      temp.addr = matrix_get_element_addr(c, c->num_row - pad_option.br.num_bottom, 0);
       mop_mapping->matrix_fill_fixed(mop_mapping, &temp, 0);
     }
     // cold
-    if (pad_option.br.num_cold > 0)
+    if (pad_option.br.num_left > 0)
     {
       temp.num_row = a->num_row;
-      temp.num_col = pad_option.br.num_cold;
-      temp.addr = matrix_get_element_addr(c, pad_option.br.num_rowd, 0);
+      temp.num_col = pad_option.br.num_left;
+      temp.addr = matrix_get_element_addr(c, pad_option.br.num_top, 0);
       mop_mapping->matrix_fill_fixed(mop_mapping, &temp, 0);
     }
     // colu
-    if (pad_option.br.num_colu > 0)
+    if (pad_option.br.num_right > 0)
     {
       temp.num_row = a->num_row;
-      temp.num_col = pad_option.br.num_colu;
-      temp.addr = matrix_get_element_addr(c, pad_option.br.num_rowd, c->num_col - pad_option.br.num_colu);
+      temp.num_col = pad_option.br.num_right;
+      temp.addr = matrix_get_element_addr(c, pad_option.br.num_top, c->num_col - pad_option.br.num_right);
       hwtask_busy_fx = mop_mapping->matrix_fill_fixed(mop_mapping, &temp, 0);
     }
   }
@@ -453,7 +453,7 @@ ervp_hwtask_busy_fx_t matrix_pad2copy_tf(ervp_mop_mapping_t *mop_mapping, const 
     // matrix_get_element_addr drops the bit offset, so a sub-byte destination would be shifted
     assert(!matrix_datatype_is_subbyte(c->datatype));
     ErvpMatrixInfo temp = *c;
-    temp.addr = matrix_get_element_addr(c, pad_option.br.num_rowd, pad_option.br.num_cold);
+    temp.addr = matrix_get_element_addr(c, pad_option.br.num_top, pad_option.br.num_left);
     mop_mapping->matrix_copy_part(mop_mapping, a, &temp, a->num_row, a->num_col, 0);
   }
   hwtask_busy_fx = matrix_padfill2copy_tf(mop_mapping, a, c, pad_option_value);

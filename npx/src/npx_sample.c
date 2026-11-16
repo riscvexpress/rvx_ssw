@@ -1,4 +1,5 @@
 #include "ervp_printf.h"
+#include "ervp_log.h"
 #include "ervp_assert.h"
 #include "ervp_malloc.h"
 #include "ervp_memory_util.h"
@@ -32,7 +33,6 @@ npx_rawinput_t *npx_load_sample(const char *filename, const char *pre_fname)
   char *input_str = texpar_find_str(option_list, "input", NULL);
   assert(input_str);
 
-  printf("\n%s\n", input_str);
   npx_rawinput_t *npx_sample;
   if ((strcmp(input_str, "mnist_opendataset") == 0) || (strcmp(input_str, "fmnist_opendataset") == 0))
   {
@@ -58,7 +58,7 @@ npx_rawinput_t *npx_load_sample(const char *filename, const char *pre_fname)
   {
     assert_msg(0, "\nunsupported input: %s", input_str);
   }
-  printf("\nsample: %s (%s)", filename, input_str);
+  rvx_log_info("NPX", "sample: %s (%s)", filename, input_str);
   return npx_sample;
 }
 
@@ -236,7 +236,7 @@ npx_rawinput_t *npx_load_speechcommands_dataset(const char *filename)
   // scale
   npx_sample->scaled = 1;
   // npx_tensor_print(npx_sample->tensor, 5);
-  printf("\nlabel: %d", npx_sample->label);
+  rvx_log_info("NPX", "label: %d", npx_sample->label);
 
   ffclose(fp);
 

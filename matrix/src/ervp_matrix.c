@@ -176,7 +176,7 @@ static int _matrix_equal_fast(const ErvpMatrixInfo *result, const ErvpMatrixInfo
   {
     void *result_row_addr = matrix_get_row_addr(result, i);
     void *ref_row_addr = matrix_get_row_addr(ref, i);
-    all_are_equal &= memory_compare(result_row_addr, ref_row_addr, row_size, 0);
+    all_are_equal &= memory_equal(result_row_addr, ref_row_addr, row_size, 0);
     if (all_are_equal == 0)
     {
       printf("\nDiff row: %d", i);

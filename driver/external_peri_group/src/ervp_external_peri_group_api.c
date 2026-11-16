@@ -7,7 +7,6 @@
 
 static volatile unsigned int spi_user_output_is_occupied = 0;
 static volatile unsigned int spi_cs_backup;
-static volatile unsigned int spi_select_backup;
 
 static inline unsigned int get_extreg_addr(int i)
 {
@@ -72,8 +71,7 @@ void spi_user_output_acquire_lock()
 		else
 		{
 			spi_user_output_is_occupied = 1;
-			spi_cs_backup = REG32(MMAP_SPIO_SPI_CS_ACTIVE_LOW);
-			spi_select_backup = REG32(MMAP_SPIO_SPI_SELECT);
+			spi_cs_backup = REG32(MMAP_SPIO_SPI_CS_POLARITY);
 			release_lock(lock_index);
 			break;
 		}
@@ -82,8 +80,7 @@ void spi_user_output_acquire_lock()
 
 void spi_user_output_release_lock()
 {
-	REG32(MMAP_SPIO_SPI_CS_ACTIVE_LOW) = spi_cs_backup;
-	REG32(MMAP_SPIO_SPI_SELECT) = spi_select_backup;
+	REG32(MMAP_SPIO_SPI_CS_POLARITY) = spi_cs_backup;
 	spi_user_output_is_occupied = 0;
 }
 
@@ -91,13 +88,12 @@ void spi_cs_config_user_output(unsigned int spi_index, unsigned int enable, unsi
 {
 	if(enable)
 	{
-		unsigned int spi_cs_active_low_list = REG32(MMAP_SPIO_SPI_CS_ACTIVE_LOW);
+		unsigned int spi_cs_polarity_list = REG32(MMAP_SPIO_SPI_CS_POLARITY);
 		if(value)
-			spi_cs_active_low_list = set_bits_by_index(spi_cs_active_low_list,spi_index,spi_index);
+			spi_cs_polarity_list = clear_bits_by_index(spi_cs_polarity_list,spi_index,spi_index);
 		else
-			spi_cs_active_low_list = clear_bits_by_index(spi_cs_active_low_list,spi_index,spi_index);
-		REG32(MMAP_SPIO_SPI_CS_ACTIVE_LOW) = spi_cs_active_low_list;
-		REG32(MMAP_SPIO_SPI_SELECT) = 0;
+			spi_cs_polarity_list = set_bits_by_index(spi_cs_polarity_list,spi_index,spi_index);
+		REG32(MMAP_SPIO_SPI_CS_POLARITY) = spi_cs_polarity_list;
 	}
 }
 

@@ -166,8 +166,7 @@ static inline void countup_coordinate(const NpxTensorInfo *a, int *coordinate, i
 {
   if ((dim_index == a->num_dim - 1) && (coordinate[dim_index] == npx_tensor_get_size(a, dim_index) - 1))
   {
-    printf("Coordinates are out of range: dim_index %d\n", dim_index);
-    assert(0);
+    assert_msg(0, "coordinates are out of range: dim_index %d", dim_index);
   }
   else
     coordinate[dim_index] += 1;
@@ -210,11 +209,7 @@ void npx_tensor_reshape(const NpxTensorInfo *a, NpxTensorInfo *b)
   size_t value_size = npx_tensor_get_datasize(a);
 
   // printf("src_num_value: %d\n", src_num_value);
-  if (a_num_value != b_num_value)
-  {
-    printf("b tensor size is not equal to a tensor size!\n");
-    assert(0);
-  }
+  assert_msg(a_num_value == b_num_value, "b tensor size is not equal to a tensor size");
 
   for (i = 0; i < a_num_value; i++)
   {
@@ -239,11 +234,7 @@ void npx_tensor_reshape(const NpxTensorInfo *a, NpxTensorInfo *b)
   size_t value_size = npx_tensor_get_datasize(a);
 
   // printf("src_num_value: %d\n", src_num_value);
-  if (a_num_value != b_num_value)
-  {
-    printf("b tensor size is not equal to a tensor size!\n");
-    assert(0);
-  }
+  assert_msg(a_num_value == b_num_value, "b tensor size is not equal to a tensor size");
 
   int *a_coordinate = (int *)calloc(a->num_dim, sizeof(int));
   int *b_coordinate = (int *)calloc(a->num_dim, sizeof(int));

@@ -62,6 +62,7 @@ static inline void dca_matrix_mac_wait(const dca_matrix_mac_hwinfo_t *const hwin
   hwtask_wait_complete(dca_matrix_mac_busy_fx(hwinfo));
 }
 
+ervp_hwtask_busy_fx_t dca_matrix_mac_start_nopost_noflush(const dca_matrix_mac_hwinfo_t *const hwinfo, unsigned int opcode, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int option_value);
 ervp_hwtask_busy_fx_t dca_matrix_mac_start(ervp_mop_mapping_t *mop_mapping, const dca_matrix_mac_hwinfo_t *const hwinfo, unsigned int opcode, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int option_value);
 
 static inline ervp_hwtask_busy_fx_t dca_matrix_add(ervp_mop_mapping_t *mop_mapping, const dca_matrix_mac_hwinfo_t *const hwinfo, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int option_value)

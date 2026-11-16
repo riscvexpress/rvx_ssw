@@ -57,21 +57,21 @@ void PLIC_set_threshold (plic_instance_t * this_plic,
 
 void PLIC_enable_interrupt (plic_instance_t * this_plic, plic_source source){
 
-  volatile uint8_t * current_ptr = (volatile uint8_t *)(this_plic->base_addr + PLIC_ENABLE_OFFSET +
-                                                        (source >> 3));
-  uint8_t current = *current_ptr;
-  current = current | ( 1 << (source & 0x7));
+  volatile uint32_t * current_ptr = (volatile uint32_t *)(this_plic->base_addr + PLIC_ENABLE_OFFSET +
+                                                          ((source >> 5) << 2));
+  uint32_t current = *current_ptr;
+  current = current | ( ((uint32_t)1) << (source & 0x1F));
   *current_ptr = current;
 
 }
 
 void PLIC_disable_interrupt (plic_instance_t * this_plic, plic_source source){
   
-  volatile uint8_t * current_ptr = (volatile uint8_t *) (this_plic->base_addr +
-                                                         PLIC_ENABLE_OFFSET +
-                                                         (source >> 3));
-  uint8_t current = *current_ptr;
-  current = current & ~(( 1 << (source & 0x7)));
+  volatile uint32_t * current_ptr = (volatile uint32_t *) (this_plic->base_addr +
+                                                           PLIC_ENABLE_OFFSET +
+                                                           ((source >> 5) << 2));
+  uint32_t current = *current_ptr;
+  current = current & ~( ((uint32_t)1) << (source & 0x1F));
   *current_ptr = current;
   
 }

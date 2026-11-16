@@ -7,7 +7,7 @@
 #include "ervp_sharedpointer.h"
 #include "ervp_memory_util.h"
 
-typedef uint16_t npx_tensor_dim_size_t;
+typedef uint32_t npx_tensor_dim_size_t;
 
 #ifndef NPX_TENSOR_MAX_DIM
 #define NPX_TENSOR_MAX_DIM 4
@@ -73,12 +73,12 @@ static inline intptr_t *npx_tensor_get_stride_array(NpxTensorInfo *a)
 	return a->_stride_array;
 }
 
-static inline void npx_tensor_set_size(NpxTensorInfo *a, int dim_index, unsigned int value)
+static inline void npx_tensor_set_size(NpxTensorInfo *a, int dim_index, npx_tensor_dim_size_t value)
 {
 	a->_size_array[dim_index] = value;
 }
 
-static inline int npx_tensor_get_size(const NpxTensorInfo *a, int dim_index)
+static inline npx_tensor_dim_size_t npx_tensor_get_size(const NpxTensorInfo *a, int dim_index)
 {
 	return a->_size_array[dim_index];
 }

@@ -1,4 +1,5 @@
 #include "ervp_printf.h"
+#include "ervp_log.h"
 #include "ervp_malloc.h"
 #include "ervp_assert.h"
 #include "ervp_memory_util.h"
@@ -112,7 +113,7 @@ npx_network_t *npx_parse_network_cfg(const char *net_fname, const char *opt_fnam
     shortcut_layer->shortcut_input = &(net->layer_compute_seq[source_index]->output_tsseq);
   }
 
-  printf("\nnumber of layers: %d\n", net->num_layer);
+  rvx_log_info("NPX", "number of layers: %d\n", net->num_layer);
 
   return net;
 }
@@ -156,8 +157,8 @@ static void parse_global_cfg(texpar_list_t *option_list, npx_network_t *net)
   net->c = input_channels;
   net->classes = classes;
 
-  printf("\nh,w,c : %d,%d,%d", net->h, net->w, net->c);
-  printf("\noutput_classes: %d", net->classes);
+  rvx_log_info("NPX", "h,w,c: %d,%d,%d", net->h, net->w, net->c);
+  rvx_log_info("NPX", "output_classes: %d", net->classes);
 }
 
 static int is_global(const texpar_section_t *section)
@@ -238,10 +239,10 @@ static void parse_conv2d(npx_layer_compute_t *layer_compute, texpar_list_t *opti
 
   int pad_amount = texpar_find_int_quiet(option_list, "padding", 0);
   conv2d_layer->pad_options.value = 0;
-  conv2d_layer->pad_options.br.num_rowu = pad_amount;
-  conv2d_layer->pad_options.br.num_rowd = pad_amount;
-  conv2d_layer->pad_options.br.num_colu = pad_amount;
-  conv2d_layer->pad_options.br.num_cold = pad_amount;
+  conv2d_layer->pad_options.br.num_bottom = pad_amount;
+  conv2d_layer->pad_options.br.num_top = pad_amount;
+  conv2d_layer->pad_options.br.num_right = pad_amount;
+  conv2d_layer->pad_options.br.num_left = pad_amount;
   if (pad_amount == 0)
     conv2d_layer->pad_options.br.mode = PADMODE_NONE;
   else
@@ -348,10 +349,10 @@ static void parse_pool2d(npx_layer_compute_t *layer_compute, texpar_list_t *opti
 
   const int pad_amount = texpar_find_int_quiet(option_list, "padding", 0);
   pool2d_layer->pad_options.value = 0;
-  pool2d_layer->pad_options.br.num_rowu = pad_amount;
-  pool2d_layer->pad_options.br.num_rowd = pad_amount;
-  pool2d_layer->pad_options.br.num_colu = pad_amount;
-  pool2d_layer->pad_options.br.num_cold = pad_amount;
+  pool2d_layer->pad_options.br.num_bottom = pad_amount;
+  pool2d_layer->pad_options.br.num_top = pad_amount;
+  pool2d_layer->pad_options.br.num_right = pad_amount;
+  pool2d_layer->pad_options.br.num_left = pad_amount;
   if (pad_amount == 0)
     pool2d_layer->pad_options.br.mode = PADMODE_NONE;
   else

@@ -1,0 +1,3 @@
+C_SRC += $(wildcard ${RVX_SSW_HOME}/driver/flash_fs/src/*.c)
+INCLUDES += -I${RVX_SSW_HOME}/driver/flash_fs/src
+CFLAGS += -DINCLUDE_FLASH_FS

@@ -63,7 +63,7 @@
     Should not be called directly from application code.
 *****************************************************************************/
 #include "platform_info.h"
-#include "frvp_spi.h"
+#include "trvp_spi.h"
 #include "ervp_mmio_util.h"
 
 /* The SPI SCK speed can be up to 25 MHz. */
@@ -71,11 +71,11 @@
 #define SPI_MODE_OF_WIFI		(SPI_SCKMODE_0)
 #define SPI_PORT_ID_OF_WIFI		(SPI_INDEX_FOR_WIFI)
 
-static SpiConfig wifi_spi_config = {SPI_DIVSOR(SPI_FREQ_OF_WIFI), SPI_MODE_OF_WIFI, (1<<SPI_PORT_ID_OF_WIFI), SPI_CSMODE_OFF, (SPI_FMT_PROTO(SPI_PROTO_S) | SPI_FMT_ENDIAN(SPI_ENDIAN_MSB) | SPI_FMT_LEN(8)), 1};
+static SpiHostConfig wifi_spi_config = {(1<<SPI_PORT_ID_OF_WIFI), SPI_DIVSOR(SPI_FREQ_OF_WIFI), SPI_MODE_OF_WIFI, 0};
 
 void WF_SpiInit(void)
 {
-    spi_configure(&wifi_spi_config);
+    spi_host_configure(&wifi_spi_config);
 }
 
 /*****************************************************************************
@@ -99,7 +99,7 @@ void WF_SpiInit(void)
 *****************************************************************************/
 void WF_SpiEnableChipSelect(void)
 {
-	spi_start();
+	spi_host_start();
 }
 
 /*****************************************************************************
@@ -123,7 +123,7 @@ e
 *****************************************************************************/
 void WF_SpiDisableChipSelect(void)
 {
-	spi_end();
+	spi_host_end();
 }
 
 /*****************************************************************************
@@ -154,5 +154,5 @@ void WF_SpiTxRx(const uint8_t *p_txBuf, uint16_t txLength, uint8_t *p_rxBuf,uint
     uint16_t byteCount;
     byteCount = (txLength >= rxLength)?txLength:rxLength;
 
-    spi_read_and_write(byteCount, p_txBuf, p_rxBuf);
+    spi_host_transceive(byteCount, p_txBuf, p_rxBuf);
 }

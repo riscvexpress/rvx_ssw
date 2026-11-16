@@ -1,6 +1,6 @@
 #include "ervp_mmio_util.h"
 #include "ervp_uart.h"
-#include "frvp_spi.h"
+#include "trvp_spi.h"
 #include "ervp_printf.h"
 #include "ervp_external_peri_group_api.h"
 #include "orvp_rtcc_module.h"

@@ -11,6 +11,9 @@
 #define DCA_MATRIX_LSU_INST_OPCODE_INDEX_OVERDRIVE 1
 #define DCA_MATRIX_LSU_INST_OPCODE_NONE 0
 
+// reg dca_pad_option
+#define BW_DCA_PAD_OPTION 16
+
 // reg dca_mru_inst
 #define BW_DCA_MRU_INST 352
 

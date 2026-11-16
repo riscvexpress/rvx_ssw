@@ -279,7 +279,7 @@ __attribute__((weak)) void npx_forward_maxpool2d_layer_default(void *layer_ptr, 
     matrix_downsample_fx = mop_mapping->matrix_downsample;
 
   npx_maxpool2d_layer_t *layer = (npx_maxpool2d_layer_t *)layer_ptr;
-  assert_pointer(2, layer, state);
+  assert(layer && state);
   assert(matrix_downsample_fx != NULL);
   assert(state->output_tsseq == NULL);
   assert(layer->pad_options.br.mode == PADMODE_NONE);
@@ -288,8 +288,8 @@ __attribute__((weak)) void npx_forward_maxpool2d_layer_default(void *layer_ptr, 
   const NpxTensorInfo *const input_tensor = state->input_tsseq->sequence[0];
   assert(layer->iodata.in_size[0] == npx_tensor_get_size(input_tensor, 0));
   assert(layer->iodata.in_size[1] == npx_tensor_get_size(input_tensor, 1));
-  assert(layer->iodata.out_size[0] == (((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
-  assert(layer->iodata.out_size[1] == (((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
+  assert(layer->iodata.out_size[0] == (((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
+  assert(layer->iodata.out_size[1] == (((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
 
   npx_tensor_dim_size_t size_array[3];
   size_array[0] = layer->iodata.out_size[0];
@@ -351,7 +351,7 @@ __attribute__((weak)) void npx_forward_sumpool2d_layer_default(void *layer_ptr, 
     matrix_downsample_fx = mop_mapping->matrix_downsample;
 
   npx_sumpool2d_layer_t *layer = (npx_sumpool2d_layer_t *)layer_ptr;
-  assert_pointer(2, layer, state);
+  assert(layer && state);
   assert(matrix_downsample_fx != NULL);
   assert(state->output_tsseq == NULL);
   assert(layer->pad_options.br.mode == PADMODE_NONE);
@@ -360,12 +360,12 @@ __attribute__((weak)) void npx_forward_sumpool2d_layer_default(void *layer_ptr, 
   const NpxTensorInfo *const input_tensor = state->input_tsseq->sequence[0];
   assert(layer->iodata.in_size[0] == npx_tensor_get_size(input_tensor, 0));
   assert(layer->iodata.in_size[1] == npx_tensor_get_size(input_tensor, 1));
-  assert(layer->iodata.out_size[0] == (((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
-  assert(layer->iodata.out_size[1] == (((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
+  assert(layer->iodata.out_size[0] == (((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
+  assert(layer->iodata.out_size[1] == (((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
 
   npx_tensor_dim_size_t size_array[3];
-  size_array[0] = ((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1;
-  size_array[1] = ((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1;
+  size_array[0] = ((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1;
+  size_array[1] = ((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1;
   size_array[2] = npx_tensor_get_size(input_tensor, 2);
   state->output_tsseq = npx_output_tsseq_alloc(timesteps, state->input_tsseq->is_boundary, state->input_tsseq->scaled, input_tensor->datatype, 3, size_array);
   state->output_tsseq->scaled *= (layer->kernel_size * layer->kernel_size);
@@ -423,7 +423,7 @@ __attribute__((weak)) void npx_forward_avgpool2d_layer_default(void *layer_ptr, 
     matrix_downsample_fx = mop_mapping->matrix_downsample;
 
   npx_avgpool2d_layer_t *layer = (npx_avgpool2d_layer_t *)layer_ptr;
-  assert_pointer(2, layer, state);
+  assert(layer && state);
   assert(matrix_downsample_fx != NULL);
   assert(state->output_tsseq == NULL);
   assert(layer->pad_options.br.mode == PADMODE_NONE);
@@ -432,12 +432,12 @@ __attribute__((weak)) void npx_forward_avgpool2d_layer_default(void *layer_ptr, 
   const NpxTensorInfo *const input_tensor = state->input_tsseq->sequence[0];
   assert(layer->iodata.in_size[0] == npx_tensor_get_size(input_tensor, 0));
   assert(layer->iodata.in_size[1] == npx_tensor_get_size(input_tensor, 1));
-  assert(layer->iodata.out_size[0] == (((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
-  assert(layer->iodata.out_size[1] == (((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
+  assert(layer->iodata.out_size[0] == (((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
+  assert(layer->iodata.out_size[1] == (((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
 
   npx_tensor_dim_size_t size_array[3];
-  size_array[0] = ((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1;
-  size_array[1] = ((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1;
+  size_array[0] = ((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1;
+  size_array[1] = ((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1;
   size_array[2] = npx_tensor_get_size(input_tensor, 2);
   state->output_tsseq = npx_output_tsseq_alloc(timesteps, state->input_tsseq->is_boundary, state->input_tsseq->scaled, input_tensor->datatype, 3, size_array);
 
@@ -488,17 +488,17 @@ __attribute__((weak)) void npx_forward_conv2d_layer_default(void *layer_ptr, erv
   NPX_PROFILING_START();
   // NOT supported
   npx_conv2d_layer_t *layer = (npx_conv2d_layer_t *)layer_ptr;
-  if (layer->pad_options.br.num_rowd > 0)
+  if (layer->pad_options.br.num_top > 0)
     assert(layer->pad_options.br.mode == PADMODE_ZEROS);
-  assert_pointer(2, layer, state);
+  assert(layer && state);
   assert(state->output_tsseq == NULL);
 
   const int timesteps = state->input_tsseq->timesteps;
   const NpxTensorInfo *const input_tensor = state->input_tsseq->sequence[0];
   assert(layer->iodata.in_size[0] == npx_tensor_get_size(input_tensor, 0));
   assert(layer->iodata.in_size[1] == npx_tensor_get_size(input_tensor, 1));
-  assert(layer->iodata.out_size[0] == (((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
-  assert(layer->iodata.out_size[1] == (((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
+  assert(layer->iodata.out_size[0] == (((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
+  assert(layer->iodata.out_size[1] == (((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
 
   npx_tensor_dim_size_t size_array[3];
   size_array[0] = layer->iodata.out_size[0];
@@ -511,7 +511,7 @@ __attribute__((weak)) void npx_forward_conv2d_layer_default(void *layer_ptr, erv
   ervp_mconv_option_t conv_option;
   conv_option.value = 0;
   conv_option.br.mop_option.br.acc = 1;
-  conv_option = matrix_conv_set_pad(conv_option, layer->pad_options.br.num_rowd, layer->pad_options.br.mode);
+  conv_option = matrix_conv_set_pad(conv_option, layer->pad_options.br.num_top, layer->pad_options.br.mode);
   conv_option.br.stride_m1 = layer->stride - 1;
 
   for (int i = 0; i < timesteps; i++)
@@ -553,7 +553,7 @@ static void npx_forward_linear_layer_old(npx_linear_layer_t *layer, ervp_mop_map
   else
     matrix_mult_fx = mop_mapping->matrix_mult;
 
-  assert_pointer(2, layer, state);
+  assert(layer && state);
   assert(matrix_mult_fx != NULL);
   assert(state->input_tsseq != NULL);
   assert(state->output_tsseq == NULL);
@@ -610,7 +610,7 @@ __attribute__((weak)) void npx_forward_linear_layer_default(void *layer_ptr, erv
     matrix_mult_fx = mop_mapping->matrix_mult;
 
   npx_linear_layer_t *layer = (npx_linear_layer_t *)layer_ptr;
-  assert_pointer(2, layer, state);
+  assert(layer && state);
   assert(matrix_mult_fx != NULL);
   assert(state->input_tsseq != NULL);
   assert(state->output_tsseq == NULL);
@@ -708,7 +708,7 @@ __attribute__((weak)) void npx_forward_leaky_layer_default(void *layer_ptr, ervp
     matrix_compare_reset_decay_fx = matrix_compare_reset_decay_hw;
   }
 
-  assert_pointer(2, layer, state);
+  assert(layer && state);
   assert(matrix_ewmult_fx != NULL);
   assert(matrix_add_fx != NULL);
   const int timesteps = state->input_tsseq->timesteps;
@@ -830,12 +830,12 @@ __attribute__((weak)) void npx_forward_shortcut_layer_default(void *layer_ptr, e
   printf_function();
   NPX_PROFILING_START();
   npx_shortcut_layer_t *layer = (npx_shortcut_layer_t *)layer_ptr;
-  assert_pointer(2, layer, state);
+  assert(layer && state);
   assert(state->output_tsseq == NULL);
-  assert_pointer(1, layer->shortcut_input);
+  assert(layer->shortcut_input);
 
   npx_layerio_tsseq_t *skip_tsseq = *(layer->shortcut_input);
-  assert_pointer(1, skip_tsseq);
+  assert(skip_tsseq);
   const int timesteps = state->input_tsseq->timesteps;
   assert(skip_tsseq->timesteps == timesteps);
 
@@ -863,7 +863,7 @@ __attribute__((weak)) void npx_forward_shortcut_layer_default(void *layer_ptr, e
       assert(0);
     }
     branch_tsseq = branch_state.output_tsseq;
-    assert_pointer(1, branch_tsseq);
+    assert(branch_tsseq);
   }
   assert(branch_tsseq->scaled == skip_tsseq->scaled);
 
@@ -886,7 +886,7 @@ __attribute__((weak)) void npx_forward_shortcut_layer_default(void *layer_ptr, e
     NpxTensorInfo *branch_tensor3d = branch_tsseq->sequence[i];
     NpxTensorInfo *input_tensor3d = state->input_tsseq->sequence[i];
     NpxTensorInfo *output_tensor3d = state->output_tsseq->sequence[i];
-    assert_pointer(3, branch_tensor3d, input_tensor3d, output_tensor3d);
+    assert(branch_tensor3d && input_tensor3d && output_tensor3d);
 
     ErvpMatrixInfo *branch_matrix = NULL;
     ErvpMatrixInfo *input_matrix = NULL;

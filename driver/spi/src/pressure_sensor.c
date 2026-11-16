@@ -1,4 +1,4 @@
-#include "frvp_spi.h"
+#include "trvp_spi.h"
 #include "pressure_sensor.h"
 #include "platform_info.h"
 
@@ -9,11 +9,11 @@
 #define PORT_ID_OF_PRESSURE_SENSOR				SPI_INDEX_FOR_READYMADE
 #define NUM_BYTES_OF_PRESSURE_SENSOR_VALUE		2
 
-static SpiConfig spiconfig = {SPI_DIVSOR(SPI_FREQ_OF_PRESSURE_SENSOR), SPI_MODE_OF_PRESSURE_SENSOR, (1<<PORT_ID_OF_PRESSURE_SENSOR), SPI_CSMODE_OFF, (SPI_FMT_PROTO(SPI_PROTO_S) | SPI_FMT_ENDIAN(SPI_ENDIAN_MSB) | SPI_FMT_LEN(8)), 1};
+static SpiHostConfig spiconfig = {(1<<PORT_ID_OF_PRESSURE_SENSOR), SPI_DIVSOR(SPI_FREQ_OF_PRESSURE_SENSOR), SPI_MODE_OF_PRESSURE_SENSOR, 0};
 
 void configure_pressure_sensor()
 {
-    spi_configure(&spiconfig);
+    spi_host_configure(&spiconfig);
 }
 
 unsigned int read_pressure_sensor_value()
@@ -21,9 +21,9 @@ unsigned int read_pressure_sensor_value()
     unsigned int result;
     unsigned char value[NUM_BYTES_OF_PRESSURE_SENSOR_VALUE];
 
-    spi_start();
-    spi_read(NUM_BYTES_OF_PRESSURE_SENSOR_VALUE, value);
-    spi_end();
+    spi_host_start();
+    spi_host_receive(NUM_BYTES_OF_PRESSURE_SENSOR_VALUE, value);
+    spi_host_end();
 
     result = (0xf00 & ((unsigned int)value[0])<<8)  |  (0xff & value[1]);
 

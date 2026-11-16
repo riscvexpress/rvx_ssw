@@ -67,16 +67,8 @@ static inline void dca_neugemm_wait(const dca_neugemm_hwinfo_t *const hwinfo)
   hwtask_wait_complete(dca_neugemm_busy_fx(hwinfo));
 }
 
+ervp_hwtask_busy_fx_t dca_neugemm_start_nopost_noflush(const dca_neugemm_hwinfo_t *const hwinfo, unsigned int opcode, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int option_value);
 ervp_hwtask_busy_fx_t dca_neugemm_start(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, unsigned int opcode, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int option_value);
-
-static inline ervp_hwtask_busy_fx_t dca_neugemm_start_with_flush(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, unsigned int opcode, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int option_value)
-{
-  if (mb_info->is_scalar)
-    trackedvar_smart_flush(2, ma_info->addr, mc_info->addr);
-  else
-    trackedvar_smart_flush(3, ma_info->addr, mb_info->addr, mc_info->addr);
-  return dca_neugemm_start(mop_mapping, hwinfo, opcode, ma_info, mb_info, mc_info, option_value);
-}
 
 static inline ervp_hwtask_busy_fx_t dca_neugemm_add(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int option_value)
 {
@@ -85,7 +77,7 @@ static inline ervp_hwtask_busy_fx_t dca_neugemm_add(ervp_mop_mapping_t *mop_mapp
   assert(mc_info->datatype != MATRIX_DATATYPE_UINT32);
   assert(matrix_is_same_size(ma_info, mb_info));
   assert(matrix_is_same_size(ma_info, mc_info));
-  return dca_neugemm_start_with_flush(mop_mapping, hwinfo, DCA_NEUGEMM_ADD, ma_info, mb_info, mc_info, option_value);
+  return dca_neugemm_start(mop_mapping, hwinfo, DCA_NEUGEMM_ADD, ma_info, mb_info, mc_info, option_value);
 }
 
 static inline ervp_hwtask_busy_fx_t dca_neugemm_sub(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int option_value)
@@ -95,7 +87,7 @@ static inline ervp_hwtask_busy_fx_t dca_neugemm_sub(ervp_mop_mapping_t *mop_mapp
   assert(mc_info->datatype != MATRIX_DATATYPE_UINT32);
   assert(matrix_is_same_size(ma_info, mb_info));
   assert(matrix_is_same_size(ma_info, mc_info));
-  return dca_neugemm_start_with_flush(mop_mapping, hwinfo, DCA_NEUGEMM_SUB, ma_info, mb_info, mc_info, option_value);
+  return dca_neugemm_start(mop_mapping, hwinfo, DCA_NEUGEMM_SUB, ma_info, mb_info, mc_info, option_value);
 }
 
 static inline ervp_hwtask_busy_fx_t dca_neugemm_ewmult(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int option_value)
@@ -106,7 +98,7 @@ static inline ervp_hwtask_busy_fx_t dca_neugemm_ewmult(ervp_mop_mapping_t *mop_m
   assert(matrix_is_same_size(ma_info, mb_info));
   assert(matrix_is_same_size(ma_info, mc_info));
   mc_info->is_binary = ma_info->is_binary & mb_info->is_binary;
-  return dca_neugemm_start_with_flush(mop_mapping, hwinfo, DCA_NEUGEMM_EWMULT, ma_info, mb_info, mc_info, option_value);
+  return dca_neugemm_start(mop_mapping, hwinfo, DCA_NEUGEMM_EWMULT, ma_info, mb_info, mc_info, option_value);
 }
 
 static inline ervp_hwtask_busy_fx_t dca_neugemm_mult(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int option_value)
@@ -117,11 +109,11 @@ static inline ervp_hwtask_busy_fx_t dca_neugemm_mult(ervp_mop_mapping_t *mop_map
   assert(ma_info->num_col == mb_info->num_row);
   assert(ma_info->num_row == mc_info->num_row);
   assert(mb_info->num_col == mc_info->num_col);
-  return dca_neugemm_start_with_flush(mop_mapping, hwinfo, DCA_NEUGEMM_MULT, ma_info, mb_info, mc_info, option_value);
+  return dca_neugemm_start(mop_mapping, hwinfo, DCA_NEUGEMM_MULT, ma_info, mb_info, mc_info, option_value);
 }
 
-ervp_hwtask_busy_fx_t dca_neugemm_conv_oneblock(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int conv_option_value);
-ervp_hwtask_busy_fx_t dca_neugemm_conv_oneblock_sharedinput(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, int num_output, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo **output_info_list, unsigned int conv_option_value);
-ervp_hwtask_busy_fx_t dca_neugemm_conv_oneblock_sharedoutput(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, int num_input, const ErvpMatrixInfo **input_info_list, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo *output_info, unsigned int conv_option_value);
+ervp_hwtask_busy_fx_t dca_neugemm_conv_oneblock_nopost(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, const ErvpMatrixInfo *ma_info, const ErvpMatrixInfo *mb_info, ErvpMatrixInfo *mc_info, unsigned int conv_option_value);
+ervp_hwtask_busy_fx_t dca_neugemm_conv_oneblock_sharedinput_nopost(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, int num_output, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo **output_info_list, unsigned int conv_option_value);
+ervp_hwtask_busy_fx_t dca_neugemm_conv_oneblock_sharedoutput_nopost(ervp_mop_mapping_t *mop_mapping, const dca_neugemm_hwinfo_t *const hwinfo, int num_input, const ErvpMatrixInfo **input_info_list, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo *output_info, unsigned int conv_option_value);
 
 #endif

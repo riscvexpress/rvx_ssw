@@ -11,6 +11,7 @@
 #include "ervp_platform_controller_api.h"
 #include "ervp_core_id.h"
 #include "ervp_printf.h"
+#include "ervp_log.h"
 #include "ervp_uart.h"
 #include "ervp_malloc.h"
 #include "ervp_memory_util.h"
@@ -88,7 +89,7 @@ void print_platform_info()
 	mmio_read_string(name_addr, name_string, name_string_size);
 	mmio_read_string(date_addr, date_string, date_string_size);
 
-	printf("\n[INFO] platform: %s @ %s", name_string, date_string);
+	rvx_log_info("SYSTEM", "platform: %s @ %s", name_string, date_string);
 }
 
 void print_rvx_info()
@@ -100,13 +101,13 @@ void print_rvx_info()
 	const unsigned int home_git_version_addr = MMAP_DESIGN_INFO_HOME_GIT_VERSION00;
 	const unsigned int devkit_git_version_addr = MMAP_DESIGN_INFO_DEVKIT_GIT_VERSION00;
 	mmio_read_string(user_name_addr, temp_string, temp_string_size);
-	printf("\n[INFO] user name: %s", temp_string);
+	rvx_log_info("SYSTEM", "user name: %s", temp_string);
 	mmio_read_string(home_git_name_addr, temp_string, temp_string_size);
-	printf("\n[INFO] rvx name: %s", temp_string);
+	rvx_log_info("SYSTEM", "rvx name: %s", temp_string);
 	mmio_read_string(home_git_version_addr, temp_string, temp_string_size);
-	printf("\n[INFO] home git: %s", temp_string);
+	rvx_log_info("SYSTEM", "home git: %s", temp_string);
 	mmio_read_string(devkit_git_version_addr, temp_string, temp_string_size);
-	printf("\n[INFO] devkit git: %s", temp_string);
+	rvx_log_info("SYSTEM", "devkit git: %s", temp_string);
 }
 
 static const int GPREG_INDEX_FOR_BOOT_INIT = 0;
@@ -165,30 +166,31 @@ void _init_platform()
 		memory_dump_init();
 		imp_type = get_imp_type();
 
+		printf_must("\n");
 		switch (imp_type)
 		{
 		case IMP_TYPE_VP:
-			printf_must("\n\n[RVX/START] %s@VP", (is_sim() ? "SIM" : "EMU"));
+			rvx_log_info("SYSTEM", "start %s@VP", (is_sim() ? "SIM" : "EMU"));
 			break;
 		case IMP_TYPE_RTL:
-			printf_must("\n\n[RVX/START] %s@RTL", (is_sim() ? "SIM" : "EMU"));
+			rvx_log_info("SYSTEM", "start %s@RTL", (is_sim() ? "SIM" : "EMU"));
 			break;
 		case IMP_TYPE_FPGA:
-			printf_must("\n\n[RVX/START] %s@FPGA", (is_sim() ? "SIM" : "EMU"));
+			rvx_log_info("SYSTEM", "start %s@FPGA", (is_sim() ? "SIM" : "EMU"));
 			break;
 		case IMP_TYPE_CHIP:
-			printf_must("\n\n[RVX/START] %s@CHIP", (is_sim() ? "SIM" : "EMU"));
+			rvx_log_info("SYSTEM", "start %s@CHIP", (is_sim() ? "SIM" : "EMU"));
 			break;
 		}
 
 		num_restart++;
 		if (num_restart > 1)
-			printf_must("\n[RVX/RESTART] %d", num_restart);
+			rvx_log_info("SYSTEM", "restart %d", num_restart);
 #ifdef INCLUDE_OFFCHIP_MRAM
 		if (OFFCHIP_MRAM_CYCLE > 0)
 			offchip_mram_set_access_cycle(OFFCHIP_MRAM_CYCLE);
 		int access_cycle = offchip_mram_get_access_cycle();
-		printf_must("\n[RVX/MRAM] %d", access_cycle);
+		rvx_log_info("MRAM", "access cycle %d", access_cycle);
 #endif
 		printf_must("\n");
 #ifdef INCLUDE_MCYCLE
@@ -293,14 +295,14 @@ void _init_heap()
 	{
 #ifdef USE_SMALL_RAM
 		heap_sram_addr = GET_LINKER_VAR(_heap_sram_baseaddr_);
-		heap_sram_size = ((uintptr_t)SMALL_RAM_LASTADDR) - heap_sram_addr + 1;
+		heap_sram_lastaddr = (uintptr_t)SMALL_RAM_LASTADDR;
 #endif
 #ifdef USE_LARGE_RAM
 		heap_dram_addr = GET_LINKER_VAR(_heap_dram_baseaddr_);
 #ifdef INCLUDE_OFFCHIP_MRAM
 		heap_dram_addr += round_up_int(_get_backup_total_size(), DATA_ALIGN_SIZE);
 #endif
-		heap_dram_size = ((uintptr_t)LARGE_RAM_LASTADDR) - heap_dram_addr + 1;
+		heap_dram_lastaddr = (uintptr_t)LARGE_RAM_LASTADDR;
 #endif
 	}
 }
@@ -351,7 +353,9 @@ void exit_platform()
 	if (auto_id == ((2 * NUM_CORE_PHYSICAL) - 1))
 	{
 		profiling_print();
-		printf_must("\n\n[RVX/END]\n");
+		printf_must("\n");
+		rvx_log_info("SYSTEM", "end");
+		printf_must("\n");
 #ifdef USE_OFFCHIP_MRAM_PROFILER
 		flush_cache();
 		offchip_mram_profile_finish(-1);
@@ -372,7 +376,10 @@ void exit_platform()
 void exit_rvx(unsigned int status)
 {
 	if (status != 0)
-		printf_must("\nError code: %8x\n", status);
+		{
+		rvx_log_error("SYSTEM", "exit code 0x%08x", status);
+		printf_must("\n");
+	}
 #ifdef USE_FAKEFILE
 	fakefile_prepare_dump();
 #endif

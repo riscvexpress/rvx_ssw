@@ -3,9 +3,9 @@
 #include "ervp_per_core.h"
 
 volatile uintptr_t heap_sram_addr NOTCACHED_DATA = 0;
-volatile uintptr_t heap_sram_size NOTCACHED_DATA = 0;
+volatile uintptr_t heap_sram_lastaddr NOTCACHED_DATA = 0;
 volatile uintptr_t heap_dram_addr NOTCACHED_DATA = 0;
-volatile uintptr_t heap_dram_size NOTCACHED_DATA = 0;
+volatile uintptr_t heap_dram_lastaddr NOTCACHED_DATA = 0;
 volatile uintptr_t heap_sram_last_id NOTCACHED_DATA = -1;
 volatile uintptr_t heap_dram_last_id NOTCACHED_DATA = -1;
 
@@ -15,17 +15,23 @@ void *palloc_largeram_backpart(size_t size, size_t align_size)
   assert(0);
 #endif
   assert(size > 0);
-  uintptr_t ptr;
+  uintptr_t ptr = 0;
 
   _acquire_lock_for_malloc();
-  ptr = heap_dram_addr - size + heap_dram_size;
-  ptr = ALIGN_DOWN_POW2(ptr, align_size);
+  if (size <= _get_heap_dram_remaining())
+  {
+    ptr = heap_dram_lastaddr - size + 1;
+    ptr = ALIGN_DOWN_POW2(ptr, align_size);
 #if defined(CACHE_LINE_SIZE)
-  ptr = ALIGN_DOWN_POW2(ptr, CACHE_LINE_SIZE);
+    ptr = ALIGN_DOWN_POW2(ptr, CACHE_LINE_SIZE);
 #endif
-  heap_dram_size = ptr - heap_dram_addr;
-  assert(heap_dram_size >= 0);
+    if (ptr >= heap_dram_addr)
+      heap_dram_lastaddr = ptr - 1;
+    else
+      ptr = 0;
+  }
   _release_lock_for_malloc();
+  assert_must_msg(ptr, "palloc_largeram_backpart fails");
 
   return (void *)ptr;
 }
@@ -42,24 +48,22 @@ static uintptr_t _alloc_cacheline(size_t aligned_size)
 {
   assert(is_aligned_to_cacheline((uintptr_t)aligned_size));
   assert(aligned_size > 0);
-  uintptr_t addr;
+  uintptr_t addr = 0;
 
   _acquire_lock_for_malloc();
 #if defined(USE_LARGE_RAM)
 #if defined(CACHE_LINE_SIZE)
   heap_dram_addr = ALIGN_UP_POW2(heap_dram_addr, CACHE_LINE_SIZE);
 #endif
-  addr = heap_dram_addr;
-  heap_dram_addr += aligned_size;
+  addr = _alloc_largeram(aligned_size);
 #elif defined(USE_SMALL_RAM)
 #if defined(CACHE_LINE_SIZE)
   heap_sram_addr = ALIGN_UP_POW2(heap_sram_addr, CACHE_LINE_SIZE);
 #endif
-  addr = heap_sram_addr;
-  heap_sram_addr += aligned_size;
+  addr = _alloc_smallram(aligned_size);
 #endif
   _release_lock_for_malloc();
-  assert(addr);
+  assert_must_msg(addr, "ppalloc fails");
   return addr;
 }
 

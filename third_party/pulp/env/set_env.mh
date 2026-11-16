@@ -1,2 +1,0 @@
-C_SRC += $(wildcard ${RVX_SSW_HOME}/third_party/pulp/src/*.c)
-INCLUDES += -I${RVX_SSW_HOME}/third_party/pulp/src

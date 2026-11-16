@@ -45,18 +45,18 @@
 #include "ervp_interrupt.h"
 #include "core_dependent.h"
 #include "ervp_external_peri_group_memorymap.h"
-#include "frvp_spi.h"
+#include "trvp_spi.h"
 #include "ervp_wifi.h"
 
 #include "System.h"
 
 void WF_Interrupt(void){
 	wifi_set_interrupt_pending(1);
-	SpiConfig backup_config;
-	spi_store_config(&backup_config);
+	SpiHostConfig backup_config;
+	spi_host_store_config(&backup_config);
 	WF_SpiInit();
 	WF_EintHandler();           // call Univeral Driver handler function
-	spi_restore_config(&backup_config);
+	spi_host_restore_config(&backup_config);
 }
 
 /*****************************************************************************

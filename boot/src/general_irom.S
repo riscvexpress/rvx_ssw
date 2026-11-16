@@ -49,31 +49,16 @@ load_app_from_flash:
     j set_ready
 #endif
   configure_spi:
-    li t2, 0x4
-    sw t2, 0x0(s2)
-    li t2, 0x3
-    sw t2, 0x4(s2)
-    li t2, 0xFFFF
-    sw t2, 0x14(s2)
-    li t2, 0x2
-    sw t2, 0x18(s2)
-    li t2, 0
+    li t2, 0xA0000000
     sw t2, 0x10(s2)
-		li t1, 1
-		li t2, NUM_SPI-1
-    sll t2, t1, t2
-		li t1, MMAP_SPIO_SPI_SELECT
-    sw t2, 0x0(t1)
-    li t2, 0x80000
-    sw t2, 0x40(s2)
-    sw x0, 0x60(s2)
-    sw x0, 0x64(s2)
-    sw x0, 0x70(s2)
-    li t2, 0x1
-    sw t2, 0x50(s2)
-    sw x0, 0x54(s2)
+    li t2, NUM_SPI-1
+    sw t2, 0x38(s2)
+    slli t1, t2, 2
+    add t1, t1, s2
+    li t2, 0xC0000004
+    sw t2, 0x18(t1)
   set_flash_baseaddr:
-    li t0, MMAP_PLATFORM_REGISTER_FLASH_BASE_ADDR
+    li t0, MMAP_PLATFORM_REGISTER_FLASH_BINARY_BASEADDR
     lw a0, 0(t0)
   align_flash_addr:
     addi a0, a0, 3
@@ -141,38 +126,44 @@ load_app_from_flash:
 
 read_one_byte_from_flash: // a0: flash addr to read, a1: value
     mv s6, ra
-  enable_spi:
-    li t2, 2
-    sw t2, 0x18(s2)
-  set_write_direction:
-    li t2, 0x00080008
-    sw t2, 0x40(s2)
+    jal wait_ready
   cmd:
-    li a2, 3
-    jal write_tx_fifo
-    srli a2, a0, 16
-    jal write_tx_fifo
-    srli a2, a0, 8
-    jal write_tx_fifo
-    mv a2, a0
-    jal write_tx_fifo
-  set_read_direction:
-    li t2, 0x00080000
-    sw t2, 0x40(s2)
+    srli t0, a0, 24
+    slli t0, t0, 8
+    ori t0, t0, 0x13
+    srli t1, a0, 16
+    andi t1, t1, 0xFF
+    slli t1, t1, 16
+    or t0, t0, t1
+    srli t1, a0, 8
+    slli t1, t1, 24
+    or t0, t0, t1
+    sw t0, 0x44(s2)
+    andi t0, a0, 0xFF
+    sw t0, 0x44(s2)
+    li t2, 0x2204
+    sw t2, 0x3C(s2)
+    jal wait_ready
   read_rx_fifo:
-    jal write_tx_fifo
-1:  lw t0, 0x4c(s2)
-    srli t1,t0,31
-    bnez t1, 1b
-  disable_spi:
-    li t2, 3
-    sw t2, 0x18(s2)
+    li t2, 0x1000
+    sw t2, 0x3C(s2)
+    li t1, 0x1000000
+1:  lw t0, 0x14(s2)
+    and t0, t0, t1
+    bnez t0, 1b
+    lw t0, 0x40(s2)
+    andi t0, t0, 0xFF
   accum:
     slli a1, a1, 8
     add a1, a1, t0
   incr:
     addi a0, a0, 1
     mv ra, s6
+    ret
+
+wait_ready:
+    lw t2, 0x14(s2)
+    bgez t2, wait_ready
     ret
 
 convert_endian: // a1: value
@@ -190,17 +181,6 @@ convert_endian: // a1: value
 	slli t1, t1, 24
 	or a1, a1, t1
 	ret
-
-write_tx_fifo: // a2: value
-    lw t2, 0x48(s2)
-    srli t2,t2,31
-    bnez t2, write_tx_fifo
-    sw a2, 0x48(s2)
-  check_empty:
-    lw t2, 0x74(s2)
-    andi t2, t2, 0x1
-    beqz t2, check_empty
-    ret
 
 /*
 copy_one_byte_from_flash_to_memory: // a0: flash addr to read, a1: memory addr to write

@@ -33,9 +33,19 @@ static inline int get_imp_type()
 	return REG32(MMAP_PLATFORM_REGISTER_IMP_TYPE);
 }
 
-static inline int get_flash_base_addr()
+static inline int get_flash_binary_baseaddr()
 {
-	return REG32(MMAP_PLATFORM_REGISTER_FLASH_BASE_ADDR);
+	return REG32(MMAP_PLATFORM_REGISTER_FLASH_BINARY_BASEADDR);
+}
+
+static inline int get_flash_fs_baseaddr()
+{
+	return REG32(MMAP_PLATFORM_REGISTER_FLASH_FS_BASEADDR);
+}
+
+static inline int get_flash_fs_size()
+{
+	return REG32(MMAP_PLATFORM_REGISTER_FLASH_FS_SIZE);
 }
 
 static inline int get_app_addr()

@@ -6,7 +6,7 @@ static uint32_t seed = 1;
 
 __attribute__((weak)) void srand_rvx(uint32_t s)
 {
-  seed = s;
+  seed = (s == 0) ? 1 : s;
 }
 
 static int32_t rand_rvx_lcg()
@@ -28,8 +28,9 @@ static int32_t rand_rvx_xorshift()
 // min ~ max 범위 난수
 __attribute__((weak)) int32_t rand_range_rvx(int32_t min, int32_t max)
 {
-  int32_t r = rand_rvx_xorshift();
-  if (max == min)
-    return min;
-  return min + (r % (max - min));
+  uint32_t r = (uint32_t)rand_rvx_xorshift();
+  uint32_t span = (uint32_t)max - (uint32_t)min + 1;
+  if (span == 0)
+    return (int32_t)r;
+  return (int32_t)((uint32_t)min + (r % span));
 }

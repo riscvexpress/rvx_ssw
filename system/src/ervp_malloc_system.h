@@ -9,9 +9,9 @@
 #include "ervp_core_id.h"
 
 extern volatile uintptr_t heap_sram_addr;
-extern volatile uintptr_t heap_sram_size;
+extern volatile uintptr_t heap_sram_lastaddr;
 extern volatile uintptr_t heap_dram_addr;
-extern volatile uintptr_t heap_dram_size;
+extern volatile uintptr_t heap_dram_lastaddr;
 extern volatile uintptr_t heap_sram_last_id;
 extern volatile uintptr_t heap_dram_last_id;
 
@@ -24,9 +24,19 @@ static inline int is_aligned_to_cacheline(uintptr_t addr)
 #endif
 }
 
+static inline uintptr_t _get_heap_sram_remaining()
+{
+  return (heap_sram_addr > heap_sram_lastaddr) ? 0 : (heap_sram_lastaddr - heap_sram_addr + 1);
+}
+
+static inline uintptr_t _get_heap_dram_remaining()
+{
+  return (heap_dram_addr > heap_dram_lastaddr) ? 0 : (heap_dram_lastaddr - heap_dram_addr + 1);
+}
+
 static inline void _prepare_heap_sram_for_multicore()
 {
-#ifdef INCLUDE_MULTICORE
+#if defined(INCLUDE_MULTICORE) && defined(CACHE_LINE_SIZE)
   if (EXCLUSIVE_ID != heap_sram_last_id)
   {
     heap_sram_addr = ALIGN_UP_POW2(heap_sram_addr, CACHE_LINE_SIZE);
@@ -40,7 +50,7 @@ static inline uintptr_t _alloc_smallram(size_t size)
   uintptr_t addr = 0;
 #ifdef USE_SMALL_RAM
   _prepare_heap_sram_for_multicore();
-  if (size <= heap_sram_size)
+  if (size <= _get_heap_sram_remaining())
   {
     addr = heap_sram_addr;
     heap_sram_addr += size;
@@ -51,7 +61,7 @@ static inline uintptr_t _alloc_smallram(size_t size)
 
 static inline void _prepare_heap_dram_for_multicore()
 {
-#ifdef INCLUDE_MULTICORE
+#if defined(INCLUDE_MULTICORE) && defined(CACHE_LINE_SIZE)
   if (EXCLUSIVE_ID != heap_dram_last_id)
   {
     heap_dram_addr = ALIGN_UP_POW2(heap_dram_addr, CACHE_LINE_SIZE);
@@ -65,7 +75,7 @@ static inline uintptr_t _alloc_largeram(size_t size)
   uintptr_t addr = 0;
 #ifdef USE_LARGE_RAM
   _prepare_heap_dram_for_multicore();
-  if (size <= heap_dram_size)
+  if (size <= _get_heap_dram_remaining())
   {
     addr = heap_dram_addr;
     heap_dram_addr += size;

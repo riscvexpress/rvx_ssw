@@ -1,4 +1,5 @@
 #include "ervp_printf.h"
+#include "ervp_log.h"
 #include "ervp_mmio_util.h"
 #include "ervp_assert.h"
 
@@ -79,7 +80,7 @@ void mmio_read_string(mmio_addr_t addr, char* dest, int max_size)
 		}
 	}
 	if(invalid_string)
-		printf_must("\n[RVX/MMIO/WARNING] invalid character: %c %d\n", temp_char, temp_char);
+		rvx_log_warning("MMIO", "invalid character: %c %d\n", temp_char, temp_char);
 }
 
 void mmfifo_write(mmio_addr_t addr, const void* value_list, int length)

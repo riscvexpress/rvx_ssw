@@ -10,9 +10,9 @@ static int prepared_dump_type = MEMORY_DUMP_NONE;
 
 void memory_dump_init()
 {
-  set_gpreg(0, MEMORY_DUMP_NONE);
-  set_gpreg(1, 0);
-  set_gpreg(2, 0);
+  set_gpreg(5, MEMORY_DUMP_NONE);
+  set_gpreg(6, 0);
+  set_gpreg(7, 0);
 }
 
 void memory_dump_prepare(int dump_type, void *addr, int size)
@@ -21,9 +21,9 @@ void memory_dump_prepare(int dump_type, void *addr, int size)
   assert(prepared_dump_type == MEMORY_DUMP_NONE);
   assert((size & 3) == 0); // size error due to OCD requirement
   prepared_dump_type = dump_type;
-  set_gpreg(0, (unsigned int)dump_type);
-  set_gpreg(1, (unsigned int)addr);
-  set_gpreg(2, (unsigned int)size);
+  set_gpreg(5, (unsigned int)dump_type);
+  set_gpreg(6, (unsigned int)addr);
+  set_gpreg(7, (unsigned int)size);
   switch (dump_type)
   {
   case MEMORY_DUMP_FAKEFILE:
@@ -39,6 +39,6 @@ void memory_dump_prepare(int dump_type, void *addr, int size)
   if (!is_sim())
   {
     printf_must("\nMemory dump is prepared (%s)", dump_type_string);
-    printf_must("\ntry \'make dump\'");
+    printf_must("\ntry \'make dump.fakefile\'");
   }
 }

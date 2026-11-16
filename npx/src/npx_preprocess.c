@@ -1,4 +1,5 @@
 #include "ervp_printf.h"
+#include "ervp_log.h"
 #include "ervp_assert.h"
 #include "ervp_malloc.h"
 #include "ervp_memory_util.h"
@@ -37,7 +38,7 @@ npx_preprocess(const char *pre_fname, const npx_network_t *net, const NpxTensorI
   assert(strcmp(s->type, "[preprocess]") == 0);
   const char *input_str = texpar_find_str(option_list, "input", NULL);
   assert(input_str);
-  printf("\npreprocess: %s", input_str);
+  rvx_log_info("NPX", "preprocess: %s", input_str);
 
   npx_layerio_tsseq_t *input_tsseq = NULL;
   if ((strcmp(input_str, "mnist_opendataset") == 0) || (strcmp(input_str, "fmnist_opendataset") == 0) || (strcmp(input_str, "cifar10_opendataset") == 0) || (strcmp(input_str, "gtsrb_opendataset") == 0) || (strcmp(input_str, "channelresponse_dataset") == 0))

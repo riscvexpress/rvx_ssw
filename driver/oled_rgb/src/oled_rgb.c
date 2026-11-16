@@ -5,7 +5,7 @@
 #include "ervp_printf.h"
 #include "ervp_delay.h"
 #include "ervp_external_peri_group_memorymap.h"
-#include "frvp_spi.h"
+#include "trvp_spi.h"
 #include "ervp_assert.h"
 
 //#define SPI_FREQ_OF_OLED        5000000
@@ -13,7 +13,7 @@
 #define SPI_FREQ_OF_OLED        13000000
 #define SPI_MODE_OF_OLED        SPI_SCKMODE_3
 
-static const SpiConfig oled_spi_config = {SPI_DIVSOR(SPI_FREQ_OF_OLED), SPI_MODE_OF_OLED, (1<<SPI_INDEX_FOR_OLED), SPI_CSMODE_OFF, (SPI_FMT_PROTO(SPI_PROTO_S) | SPI_FMT_ENDIAN(SPI_ENDIAN_MSB) | SPI_FMT_LEN(8)), 1};
+static const SpiHostConfig oled_spi_config = {(1<<SPI_INDEX_FOR_OLED), SPI_DIVSOR(SPI_FREQ_OF_OLED), SPI_MODE_OF_OLED, 0};
 
 static unsigned char cmds[13];
 static uint16_t oled_buffer[OLEDRGB_WIDTH*OLEDRGB_HEIGHT];
@@ -45,7 +45,7 @@ void oled_rgb_end()
 
 void oled_rgb_config_spi()
 {
-	spi_configure(&oled_spi_config);
+	spi_host_configure(&oled_spi_config);
 }
 
 static inline void OledReset()
@@ -383,9 +383,9 @@ void oled_rgb_stop_scrolling()
 
 void write_cmd1(unsigned char bVal)
 {
-	spi_start();
-	spi_write(1, &bVal);
-	spi_end();
+	spi_host_start();
+	spi_host_transmit(1, &bVal);
+	spi_host_end();
 }
 
 void write_cmd2(unsigned char bVal1, unsigned char bVal2)
@@ -394,41 +394,41 @@ void write_cmd2(unsigned char bVal1, unsigned char bVal2)
 	cmd[0] = bVal1;
 	cmd[1] = bVal2;
 
-	spi_start();
-	spi_write(2, cmd);
-	spi_end();
+	spi_host_start();
+	spi_host_transmit(2, cmd);
+	spi_host_end();
 }
 
 void write_cmd4(unsigned char *pCmd, int nCmd, const unsigned char *pData, int nData)
 {
-	spi_start();
-	spi_write(nCmd, pCmd);
+	spi_host_start();
+	spi_host_transmit(nCmd, pCmd);
 
 	if(pData != NULL)
 	{
 		gpio_set_output(MMAP_SPIO_OLED_DCSEL, OLED_DC_SEL_DATA);
-		spi_write(nData, pData);
+		spi_host_transmit(nData, pData);
 		gpio_set_output(MMAP_SPIO_OLED_DCSEL, OLED_DC_SEL_COMMAND);
 	}
-	spi_end();
+	spi_host_end();
 }
 
 void write_bitmap(unsigned char *pCmd, int nCmd, const unsigned char *pData, int nData)
 {
 	int i;
-	spi_start();
-	spi_write(nCmd, pCmd);
+	spi_host_start();
+	spi_host_transmit(nCmd, pCmd);
 
 	if(pData != NULL)
 	{
 		gpio_set_output(MMAP_SPIO_OLED_DCSEL, OLED_DC_SEL_DATA);
 		for(i=0; i<nData; i+=2)
 		{
-			spi_write(1, &pData[1]);
-			spi_write(1, &pData[0]);
+			spi_host_transmit(1, &pData[1]);
+			spi_host_transmit(1, &pData[0]);
 			pData += 2;
 		}
 		gpio_set_output(MMAP_SPIO_OLED_DCSEL, OLED_DC_SEL_COMMAND);
 	}
-	spi_end();
+	spi_host_end();
 }

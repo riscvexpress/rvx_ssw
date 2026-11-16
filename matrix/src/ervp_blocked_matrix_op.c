@@ -7,11 +7,16 @@
 #include "ervp_special_matrix_op.h"
 #include "ervp_matrix_element.h"
 #include "ervp_matrix_op_transform.h"
+#include "ervp_smart_flush.h"
 
-ervp_hwtask_busy_fx_t blocked_matrix_mult(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *a, const ErvpMatrixInfo *b, ErvpMatrixInfo *c, unsigned int option_value)
+static ervp_hwtask_busy_fx_t _blocked_matrix_mult_nopost(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *a, const ErvpMatrixInfo *b, ErvpMatrixInfo *c, unsigned int option_value, int subblock_mode)
 {
   assert(blocked_info);
   assert(blocked_info->subop_mapping);
+  assert(!mop_option_has_postprocess(mop_option_set(option_value)));
+
+  if (subblock_mode != SUBBLOCK_BY_SW)
+    trackedvar_smart_flush(3, a->addr, b->addr, c->addr);
 
   // printf_function();
   //  matrix_mult_size_print(a, b, c);
@@ -25,15 +30,7 @@ ervp_hwtask_busy_fx_t blocked_matrix_mult(ervp_blocked_matrix_info_t *blocked_in
   ErvpMatrixInfo block_b = *b;
   ErvpMatrixInfo block_c = *c;
 
-  const int HAS_POST_PROCESS = mop_option_has_postprocess(mop_option_set(option_value));
-
   const int block_size = blocked_info->block_size;
-  ErvpMatrixInfo *temp_buffer = NULL; // due to overflow
-  if (HAS_POST_PROCESS)
-  {
-    ervp_matrix_datatype_t datatype = matrix_datatype_is_float(c->datatype) ? MATRIX_DATATYPE_FLOAT32 : MATRIX_DATATYPE_SINT32;
-    temp_buffer = matrix_alloc(datatype, block_size, block_size);
-  }
 
   for (int m = 0; m < a->num_row; m += block_size)
   {
@@ -53,15 +50,7 @@ ervp_hwtask_busy_fx_t blocked_matrix_mult(ervp_blocked_matrix_info_t *blocked_in
 
       block_c.addr = matrix_get_element_addr(c, m, n);
 
-      if (HAS_POST_PROCESS)
-      {
-        temp_buffer->num_row = block_c.num_row;
-        temp_buffer->num_col = block_c.num_col;
-        // matrix_zero_sw(temp_buffer);
-        hwtask_wait_complete(hwtask_busy_fx);
-        hwtask_busy_fx = blocked_info->subop_mapping->matrix_zero(blocked_info->subop_mapping, temp_buffer);
-      }
-      else if (!mop_option_is_acc(mop_option_set(option_value)))
+      if (!mop_option_is_acc(mop_option_set(option_value)))
       {
         // matrix_zero_sw(&block_c);
         hwtask_busy_fx = blocked_info->subop_mapping->matrix_zero(blocked_info->subop_mapping, &block_c);
@@ -79,28 +68,30 @@ ervp_hwtask_busy_fx_t blocked_matrix_mult(ervp_blocked_matrix_info_t *blocked_in
         block_b.addr = matrix_get_element_addr(b, k, n);
 
         hwtask_wait_complete(hwtask_busy_fx);
-        if (HAS_POST_PROCESS)
-          hwtask_busy_fx = blocked_info->subop_mapping->matrix_mult(blocked_info->subop_mapping, &block_a, &block_b, temp_buffer, mop_option_acc_only().value);
-        else
-          hwtask_busy_fx = blocked_info->subop_mapping->matrix_mult(blocked_info->subop_mapping, &block_a, &block_b, &block_c, mop_option_acc_only().value);
-      }
-      if (HAS_POST_PROCESS)
-      {
-        hwtask_wait_complete(hwtask_busy_fx);
-        hwtask_busy_fx = matrix_perform_postprocess_tf(blocked_info->subop_mapping, temp_buffer, &block_c, option_value);
+        hwtask_busy_fx = blocked_info->subop_mapping->matrix_mult(blocked_info->subop_mapping, &block_a, &block_b, &block_c, mop_option_acc_only().value);
       }
     }
-  }
-  if (temp_buffer)
-  {
-    hwtask_wait_complete(hwtask_busy_fx);
-    hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
-    matrix_free(temp_buffer);
   }
   return hwtask_busy_fx;
 }
 
-ervp_hwtask_busy_fx_t blocked_matrix_op(int block_size, void *subblock_binary_fx, ervp_mop_mapping_t *subop_mapping, const ErvpMatrixInfo *a, const ErvpMatrixInfo *b, ErvpMatrixInfo *c, unsigned int option_value)
+ervp_hwtask_busy_fx_t blocked_matrix_mult_mode(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *a, const ErvpMatrixInfo *b, ErvpMatrixInfo *c, unsigned int option_value, int subblock_mode)
+{
+  if (!mop_option_has_postprocess(mop_option_set(option_value)))
+    return _blocked_matrix_mult_nopost(blocked_info, a, b, c, option_value, subblock_mode);
+
+  // due to overflow
+  ervp_matrix_datatype_t datatype = matrix_datatype_is_float(c->datatype) ? MATRIX_DATATYPE_FLOAT32 : MATRIX_DATATYPE_SINT32;
+  ErvpMatrixInfo *temp_info = matrix_alloc(datatype, c->num_row, c->num_col);
+  ervp_hwtask_busy_fx_t hwtask_busy_fx = _blocked_matrix_mult_nopost(blocked_info, a, b, temp_info, 0, subblock_mode);
+  hwtask_wait_complete(hwtask_busy_fx);
+  hwtask_busy_fx = matrix_perform_postprocess_tf(blocked_info->subop_mapping, temp_info, c, option_value);
+  hwtask_wait_complete(hwtask_busy_fx);
+  matrix_free(temp_info);
+  return HWTASK_BUSY_FX_NULL;
+}
+
+ervp_hwtask_busy_fx_t blocked_matrix_op_nopost(int block_size, void *subblock_binary_fx, ervp_mop_mapping_t *subop_mapping, const ErvpMatrixInfo *a, const ErvpMatrixInfo *b, ErvpMatrixInfo *c, unsigned int option_value, int subblock_mode)
 {
   assert(subblock_binary_fx);
   assert(a);
@@ -108,6 +99,14 @@ ervp_hwtask_busy_fx_t blocked_matrix_op(int block_size, void *subblock_binary_fx
   assert(c);
   assert(!a->is_scalar);
   assert(!c->is_scalar);
+
+  if (subblock_mode != SUBBLOCK_BY_SW)
+  {
+    if (b->is_scalar)
+      trackedvar_smart_flush(2, a->addr, c->addr);
+    else
+      trackedvar_smart_flush(3, a->addr, b->addr, c->addr);
+  }
 
   ervp_matrix_binarypp_fx_t subblock_binary_fx_real = subblock_binary_fx;
   ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
@@ -162,6 +161,22 @@ ervp_hwtask_busy_fx_t blocked_matrix_op(int block_size, void *subblock_binary_fx
   return hwtask_busy_fx;
 }
 
+ervp_hwtask_busy_fx_t blocked_matrix_op_mode(int block_size, void *subblock_binary_fx, ervp_mop_mapping_t *subop_mapping, const ErvpMatrixInfo *a, const ErvpMatrixInfo *b, ErvpMatrixInfo *c, unsigned int option_value, int subblock_mode)
+{
+  if (!mop_option_has_postprocess(mop_option_set(option_value)))
+    return blocked_matrix_op_nopost(block_size, subblock_binary_fx, subop_mapping, a, b, c, option_value, subblock_mode);
+
+  // due to overflow
+  ervp_matrix_datatype_t datatype = matrix_datatype_is_float(c->datatype) ? MATRIX_DATATYPE_FLOAT32 : MATRIX_DATATYPE_SINT32;
+  ErvpMatrixInfo *temp_info = matrix_alloc(datatype, c->num_row, c->num_col);
+  ervp_hwtask_busy_fx_t hwtask_busy_fx = blocked_matrix_op_nopost(block_size, subblock_binary_fx, subop_mapping, a, b, temp_info, 0, subblock_mode);
+  hwtask_wait_complete(hwtask_busy_fx);
+  hwtask_busy_fx = matrix_perform_postprocess_tf(subop_mapping, temp_info, c, option_value);
+  hwtask_wait_complete(hwtask_busy_fx);
+  matrix_free(temp_info);
+  return HWTASK_BUSY_FX_NULL;
+}
+
 static inline int _matrix_conv_output_rows_per_block(int block_row, int kernel_row)
 {
   return block_row - kernel_row + 1;
@@ -183,18 +198,18 @@ static inline void _matrix_block_move_by_bit_offset(ErvpMatrixInfo *block, int b
 static inline int _matrix_conv_output_rows_wo_stride(int input_row, int kernel_row, ervp_mconv_option_t conv_option)
 {
   ervp_mpad_option_t pad_option = mconv_option_get_pad_option(conv_option);
-  int output_rows = input_row + pad_option.br.num_rowd + pad_option.br.num_rowu - kernel_row + 1;
+  int output_rows = input_row + pad_option.br.num_top + pad_option.br.num_bottom - kernel_row + 1;
   return output_rows;
 }
 
 static inline int _matrix_conv_output_cols_wo_stride(int input_col, int kernel_col, ervp_mconv_option_t conv_option)
 {
   ervp_mpad_option_t pad_option = mconv_option_get_pad_option(conv_option);
-  int output_cols = input_col + pad_option.br.num_cold + pad_option.br.num_colu - kernel_col + 1;
+  int output_cols = input_col + pad_option.br.num_left + pad_option.br.num_right - kernel_col + 1;
   return output_cols;
 }
 
-static ervp_hwtask_busy_fx_t _blocked_matrix_conv_nopost_nopad(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo *kernel_info, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
+static ervp_hwtask_busy_fx_t _blocked_matrix_conv_nopad_nopost_nohwzeropad(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo *kernel_info, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
 {
   assert(blocked_info);
   assert(blocked_info->subop_mapping);
@@ -272,34 +287,115 @@ static ervp_hwtask_busy_fx_t _blocked_matrix_conv_nopost_nopad(ervp_blocked_matr
   return hwtask_busy_fx;
 }
 
-static ervp_hwtask_busy_fx_t _blocked_matrix_conv_nopost(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo *kernel_info, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
+// the input is regarded as the padded matrix whose start addr is virtually moved
+static inline ErvpMatrixInfo _blocked_matrix_conv_padded_input(const ErvpMatrixInfo *input_info, ervp_mpad_option_t pad_option)
 {
-  assert(!mconv_option_has_postprocess(mconv_option_set(conv_option_value)));
+  ErvpMatrixInfo padded_input = *input_info;
+  padded_input.addr = matrix_get_virtual_element_addr(input_info, -pad_option.br.num_top, -pad_option.br.num_left);
+  padded_input.num_row = input_info->num_row + pad_option.br.num_top + pad_option.br.num_bottom;
+  padded_input.num_col = input_info->num_col + pad_option.br.num_left + pad_option.br.num_right;
+  return padded_input;
+}
+
+// sets the size of the output block (m, n) and the real input block, and returns the part of the pad on its boundary
+// the input block of the output block (m, n) starts at (m, n) of the padded input
+// the size of the real input block is not positive if the whole input block is pad, and the subop handles it with the pad
+static ervp_mpad_option_t _blocked_matrix_conv_set_block_hwzeropad(const ErvpMatrixInfo *input_info, int kernel_size, ErvpMatrixInfo *output_info, ervp_mpad_option_t pad_option, int output_block_size, int m, int n, ErvpMatrixInfo *block_i, ErvpMatrixInfo *block_o)
+{
+  const int real_row_start = pad_option.br.num_top;
+  const int real_row_end = pad_option.br.num_top + input_info->num_row;
+  const int real_col_start = pad_option.br.num_left;
+  const int real_col_end = pad_option.br.num_left + input_info->num_col;
+
+  block_o->num_row = ((output_info->num_row - m) < output_block_size) ? (output_info->num_row - m) : output_block_size;
+  block_o->num_col = ((output_info->num_col - n) < output_block_size) ? (output_info->num_col - n) : output_block_size;
+  const int input_row_end = m + col_matrix_conv_required_input_size(block_o->num_row, kernel_size);
+  const int input_col_end = n + col_matrix_conv_required_input_size(block_o->num_col, kernel_size);
+
+  ervp_mpad_option_t block_pad_option;
+  block_pad_option.value = 0;
+  block_pad_option.br.num_top = (real_row_start > m) ? (real_row_start - m) : 0;
+  block_pad_option.br.num_bottom = (input_row_end > real_row_end) ? (input_row_end - real_row_end) : 0;
+  block_pad_option.br.num_left = (real_col_start > n) ? (real_col_start - n) : 0;
+  block_pad_option.br.num_right = (input_col_end > real_col_end) ? (input_col_end - real_col_end) : 0;
+  if (block_pad_option.value)
+    block_pad_option.br.mode = PADMODE_ZEROS;
+
+  block_i->num_row = (input_row_end - m) - block_pad_option.br.num_top - block_pad_option.br.num_bottom;
+  block_i->num_col = (input_col_end - n) - block_pad_option.br.num_left - block_pad_option.br.num_right;
+  return block_pad_option;
+}
+
+static inline void _blocked_matrix_conv_assert_hwzeropad(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo *kernel_info, const ErvpMatrixInfo *output_info, ervp_mconv_option_t conv_option)
+{
+  assert(blocked_info);
+  assert(blocked_info->subop_mapping);
+  assert(kernel_info->num_row == kernel_info->num_col);
+  assert(!mconv_option_has_postprocess(conv_option));
+  assert(conv_option.br.pad_option.br.mode == PADMODE_ZEROS);
+  assert(!matrix_datatype_is_subbyte(input_info->datatype));
+  assert(!matrix_datatype_is_subbyte(output_info->datatype));
+}
+
+// the subop (HW) applies the zero pad, so each block gets only the part of the pad on its boundary
+static ervp_hwtask_busy_fx_t _blocked_matrix_conv_nopost_hwzeropad(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo *kernel_info, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
+{
+  ervp_mconv_option_t conv_option;
+  conv_option.value = conv_option_value;
+  _blocked_matrix_conv_assert_hwzeropad(blocked_info, input_info, kernel_info, output_info, conv_option);
+
+  const int output_block_size = _matrix_conv_output_rows_per_block(blocked_info->block_size, kernel_info->num_row);
+  const ErvpMatrixInfo padded_input = _blocked_matrix_conv_padded_input(input_info, conv_option.br.pad_option);
+
+  ErvpMatrixInfo block_o = *output_info;
+  block_o.is_sub = 1;
+  ErvpMatrixInfo block_i = *input_info;
+  block_i.is_sub = 1;
+  ervp_mconv_option_t block_conv_option = conv_option;
+
+  // m, n are indexes of the output_matrix
   ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
-  if (matrix_conv_has_pad(mconv_option_set(conv_option_value)))
-  {
-    ervp_mpad_option_t pad_option;
-    pad_option.value = matrix_pad_gen_option(conv_option_value);
-    ErvpMatrixInfo *padded_input_info = matrix_pad_alloc_output(input_info, pad_option.value);
-    hwtask_busy_fx = blocked_info->subop_mapping->matrix_pad(blocked_info->subop_mapping, input_info, padded_input_info, pad_option.value);
-    ervp_mconv_option_t conv_option;
-    conv_option.value = conv_option_value;
-    conv_option.br.pad_option.value = 0;
-    hwtask_wait_complete(hwtask_busy_fx);
-    hwtask_busy_fx = _blocked_matrix_conv_nopost_nopad(blocked_info, padded_input_info, kernel_info, output_info, conv_option.value);
-    hwtask_wait_complete(hwtask_busy_fx);
-    hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
-    matrix_free(padded_input_info);
-  }
-  else
-    hwtask_busy_fx = _blocked_matrix_conv_nopost_nopad(blocked_info, input_info, kernel_info, output_info, conv_option_value);
+  for (int m = 0; m < output_info->num_row; m += output_block_size)
+    for (int n = 0; n < output_info->num_col; n += output_block_size)
+    {
+      block_conv_option.br.pad_option = _blocked_matrix_conv_set_block_hwzeropad(input_info, kernel_info->num_row, output_info, conv_option.br.pad_option, output_block_size, m, n, &block_i, &block_o);
+      block_o.addr = matrix_get_element_addr(output_info, m, n);
+      block_i.addr = matrix_get_element_addr(&padded_input, m + block_conv_option.br.pad_option.br.num_top, n + block_conv_option.br.pad_option.br.num_left);
+      hwtask_busy_fx = blocked_info->subop_mapping->matrix_conv(blocked_info->subop_mapping, &block_i, kernel_info, &block_o, block_conv_option.value);
+    }
   return hwtask_busy_fx;
 }
 
-ervp_hwtask_busy_fx_t blocked_matrix_conv(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo *kernel_info, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
+// the pad remains only if it is sent to the subop with each block
+static ervp_hwtask_busy_fx_t _blocked_matrix_conv_nopad_nopost(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo *kernel_info, ErvpMatrixInfo *output_info, unsigned int conv_option_value, int subblock_mode)
 {
-  ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
+  if (subblock_mode != SUBBLOCK_BY_SW)
+    trackedvar_smart_flush(3, input_info->addr, kernel_info->addr, output_info->addr);
+  if (matrix_conv_has_pad(mconv_option_set(conv_option_value)))
+    return _blocked_matrix_conv_nopost_hwzeropad(blocked_info, input_info, kernel_info, output_info, conv_option_value);
+  return _blocked_matrix_conv_nopad_nopost_nohwzeropad(blocked_info, input_info, kernel_info, output_info, conv_option_value);
+}
+
+ervp_hwtask_busy_fx_t blocked_matrix_conv_mode(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo *kernel_info, ErvpMatrixInfo *output_info, unsigned int conv_option_value, int subblock_mode)
+{
   ervp_mconv_option_t conv_option = mconv_option_set(conv_option_value);
+  ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
+
+  // the zero pad of SUBBLOCK_BY_HW_ZEROPAD is sent to the subop with each block, and the other pads are applied in advance
+  const int pad_is_sent_to_subop = (subblock_mode == SUBBLOCK_BY_HW_ZEROPAD) && (conv_option.br.pad_option.br.mode == PADMODE_ZEROS);
+  ErvpMatrixInfo *padded_input_info = NULL;
+  const ErvpMatrixInfo *nopad_input_info = input_info;
+  if (matrix_conv_has_pad(conv_option) && !pad_is_sent_to_subop)
+  {
+    ervp_mpad_option_t pad_option;
+    pad_option.value = matrix_pad_gen_option(conv_option_value);
+    padded_input_info = matrix_pad_alloc_output(input_info, pad_option.value);
+    hwtask_busy_fx = blocked_info->subop_mapping->matrix_pad(blocked_info->subop_mapping, input_info, padded_input_info, pad_option.value);
+    hwtask_wait_complete(hwtask_busy_fx);
+    conv_option.br.pad_option.value = 0;
+    nopad_input_info = padded_input_info;
+  }
+
   if (mconv_option_has_postprocess(conv_option))
   {
     const int stride = conv_option.br.stride_m1 + 1;
@@ -310,7 +406,7 @@ ervp_hwtask_busy_fx_t blocked_matrix_conv(ervp_blocked_matrix_info_t *blocked_in
     conv_option_nopost.value = 0;
     conv_option_nopost.br.pad_option = conv_option.br.pad_option;
 
-    hwtask_busy_fx = _blocked_matrix_conv_nopost(blocked_info, input_info, kernel_info, temp_output_info, conv_option_nopost.value);
+    hwtask_busy_fx = _blocked_matrix_conv_nopad_nopost(blocked_info, nopad_input_info, kernel_info, temp_output_info, conv_option_nopost.value, subblock_mode);
     hwtask_wait_complete(hwtask_busy_fx);
 
     // the stride is applied by subsampling, then rshift/clip/acc go into the real output
@@ -336,11 +432,23 @@ ervp_hwtask_busy_fx_t blocked_matrix_conv(ervp_blocked_matrix_info_t *blocked_in
     matrix_free(temp_output_info);
   }
   else
-    hwtask_busy_fx = _blocked_matrix_conv_nopost(blocked_info, input_info, kernel_info, output_info, conv_option_value);
+    hwtask_busy_fx = _blocked_matrix_conv_nopad_nopost(blocked_info, nopad_input_info, kernel_info, output_info, conv_option.value, subblock_mode);
+
+  if (padded_input_info)
+  {
+    hwtask_wait_complete(hwtask_busy_fx);
+    hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
+    matrix_free(padded_input_info);
+  }
   return hwtask_busy_fx;
 }
 
-static ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedinput_nopost_nopad(ervp_blocked_matrix_info_t *blocked_info, int num_output, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo **output_info_list, unsigned int conv_option_value)
+ervp_hwtask_busy_fx_t blocked_matrix_conv(ervp_blocked_matrix_info_t *blocked_info, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo *kernel_info, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
+{
+  return blocked_matrix_conv_prepad(blocked_info, input_info, kernel_info, output_info, conv_option_value);
+}
+
+static ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedinput_nopad_nopost_nohwzeropad(ervp_blocked_matrix_info_t *blocked_info, int num_output, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo **output_info_list, unsigned int conv_option_value)
 {
   assert(blocked_info);
   assert(blocked_info->subop_mapping);
@@ -440,34 +548,77 @@ static ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedinput_nopost_nopad(ervp_
   return hwtask_busy_fx;
 }
 
-static ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedinput_nopost(ervp_blocked_matrix_info_t *blocked_info, int num_output, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo **output_info_list, unsigned int conv_option_value)
+// the subop (HW) applies the zero pad, so each block gets only the part of the pad on its boundary
+static ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedinput_nopost_hwzeropad(ervp_blocked_matrix_info_t *blocked_info, int num_output, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo **output_info_list, unsigned int conv_option_value)
 {
-  assert(!mconv_option_has_postprocess(mconv_option_set(conv_option_value)));
-  ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
-  if (matrix_conv_has_pad(mconv_option_set(conv_option_value)))
+  ervp_mconv_option_t conv_option;
+  conv_option.value = conv_option_value;
+  _blocked_matrix_conv_assert_hwzeropad(blocked_info, input_info, kernel_info_list[0], output_info_list[0], conv_option);
+
+  const int output_block_size = _matrix_conv_output_rows_per_block(blocked_info->block_size, kernel_info_list[0]->num_row);
+  const ErvpMatrixInfo padded_input = _blocked_matrix_conv_padded_input(input_info, conv_option.br.pad_option);
+
+  ErvpMatrixInfo *p_block_o_list[num_output];
+  ErvpMatrixInfo block_o_list[num_output];
+  for (int i = 0; i < num_output; i++)
   {
-    ervp_mpad_option_t pad_option;
-    pad_option.value = matrix_pad_gen_option(conv_option_value);
-    ErvpMatrixInfo *padded_input_info = matrix_pad_alloc_output(input_info, pad_option.value);
-    hwtask_busy_fx = blocked_info->subop_mapping->matrix_pad(blocked_info->subop_mapping, input_info, padded_input_info, pad_option.value);
-    ervp_mconv_option_t conv_option;
-    conv_option.value = conv_option_value;
-    conv_option.br.pad_option.value = 0;
-    hwtask_wait_complete(hwtask_busy_fx);
-    hwtask_busy_fx = _blocked_matrix_conv_sharedinput_nopost_nopad(blocked_info, num_output, padded_input_info, kernel_info_list, output_info_list, conv_option.value);
-    hwtask_wait_complete(hwtask_busy_fx);
-    hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
-    matrix_free(padded_input_info);
+    p_block_o_list[i] = &(block_o_list[i]);
+    block_o_list[i] = *(output_info_list[i]);
+    block_o_list[i].is_sub = 1;
   }
-  else
-    hwtask_busy_fx = _blocked_matrix_conv_sharedinput_nopost_nopad(blocked_info, num_output, input_info, kernel_info_list, output_info_list, conv_option_value);
+  ErvpMatrixInfo block_i = *input_info;
+  block_i.is_sub = 1;
+  ervp_mconv_option_t block_conv_option = conv_option;
+
+  // m, n are indexes of the output_matrix
+  ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
+  for (int m = 0; m < output_info_list[0]->num_row; m += output_block_size)
+    for (int n = 0; n < output_info_list[0]->num_col; n += output_block_size)
+    {
+      block_conv_option.br.pad_option = _blocked_matrix_conv_set_block_hwzeropad(input_info, kernel_info_list[0]->num_row, output_info_list[0], conv_option.br.pad_option, output_block_size, m, n, &block_i, &(block_o_list[0]));
+      for (int i = 0; i < num_output; i++)
+      {
+        block_o_list[i].num_row = block_o_list[0].num_row;
+        block_o_list[i].num_col = block_o_list[0].num_col;
+        block_o_list[i].addr = matrix_get_element_addr(output_info_list[i], m, n);
+      }
+      block_i.addr = matrix_get_element_addr(&padded_input, m + block_conv_option.br.pad_option.br.num_top, n + block_conv_option.br.pad_option.br.num_left);
+      hwtask_busy_fx = blocked_info->subop_mapping->matrix_conv_sharedinput(blocked_info->subop_mapping, num_output, &block_i, kernel_info_list, p_block_o_list, block_conv_option.value);
+    }
   return hwtask_busy_fx;
 }
 
-ervp_hwtask_busy_fx_t blocked_matrix_conv_sharedinput(ervp_blocked_matrix_info_t *blocked_info, int num_output, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo **output_info_list, unsigned int conv_option_value)
+// the pad remains only if it is sent to the subop with each block
+static ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedinput_nopad_nopost(ervp_blocked_matrix_info_t *blocked_info, int num_output, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo **output_info_list, unsigned int conv_option_value, int subblock_mode)
+{
+  assert(!mconv_option_has_postprocess(mconv_option_set(conv_option_value)));
+  if (subblock_mode != SUBBLOCK_BY_SW)
+    trackedvar_smart_flush(3, input_info->addr, kernel_info_list[0]->addr, output_info_list[0]->addr);
+  if (matrix_conv_has_pad(mconv_option_set(conv_option_value)))
+    return _blocked_matrix_conv_sharedinput_nopost_hwzeropad(blocked_info, num_output, input_info, kernel_info_list, output_info_list, conv_option_value);
+  return _blocked_matrix_conv_sharedinput_nopad_nopost_nohwzeropad(blocked_info, num_output, input_info, kernel_info_list, output_info_list, conv_option_value);
+}
+
+ervp_hwtask_busy_fx_t blocked_matrix_conv_sharedinput_mode(ervp_blocked_matrix_info_t *blocked_info, int num_output, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo **output_info_list, unsigned int conv_option_value, int subblock_mode)
 {
   ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
   ervp_mconv_option_t conv_option = mconv_option_set(conv_option_value);
+
+  // the zero pad of SUBBLOCK_BY_HW_ZEROPAD is sent to the subop with each block, and the other pads are applied in advance
+  const int pad_is_sent_to_subop = (subblock_mode == SUBBLOCK_BY_HW_ZEROPAD) && (conv_option.br.pad_option.br.mode == PADMODE_ZEROS);
+  ErvpMatrixInfo *padded_input_info = NULL;
+  const ErvpMatrixInfo *nopad_input_info = input_info;
+  if (matrix_conv_has_pad(conv_option) && !pad_is_sent_to_subop)
+  {
+    ervp_mpad_option_t pad_option;
+    pad_option.value = matrix_pad_gen_option(conv_option_value);
+    padded_input_info = matrix_pad_alloc_output(input_info, pad_option.value);
+    hwtask_busy_fx = blocked_info->subop_mapping->matrix_pad(blocked_info->subop_mapping, input_info, padded_input_info, pad_option.value);
+    hwtask_wait_complete(hwtask_busy_fx);
+    conv_option.br.pad_option.value = 0;
+    nopad_input_info = padded_input_info;
+  }
+
   if (mconv_option_has_postprocess(conv_option))
   {
     ErvpMatrixInfo **temp_output_info_list = (ErvpMatrixInfo **)malloc(num_output * sizeof(ErvpMatrixInfo *));
@@ -479,7 +630,7 @@ ervp_hwtask_busy_fx_t blocked_matrix_conv_sharedinput(ervp_blocked_matrix_info_t
     conv_option_nopost.value = 0;
     conv_option_nopost.br.pad_option = conv_option.br.pad_option;
 
-    hwtask_busy_fx = _blocked_matrix_conv_sharedinput_nopost(blocked_info, num_output, input_info, kernel_info_list, temp_output_info_list, conv_option_nopost.value);
+    hwtask_busy_fx = _blocked_matrix_conv_sharedinput_nopad_nopost(blocked_info, num_output, nopad_input_info, kernel_info_list, temp_output_info_list, conv_option_nopost.value, subblock_mode);
     hwtask_wait_complete(hwtask_busy_fx);
 
     // the stride is applied by subsampling, then rshift/clip/acc go into the real output
@@ -513,11 +664,23 @@ ervp_hwtask_busy_fx_t blocked_matrix_conv_sharedinput(ervp_blocked_matrix_info_t
     matrix_list_free(temp_output_info_list, num_output);
   }
   else
-    hwtask_busy_fx = _blocked_matrix_conv_sharedinput_nopost(blocked_info, num_output, input_info, kernel_info_list, output_info_list, conv_option_value);
+    hwtask_busy_fx = _blocked_matrix_conv_sharedinput_nopad_nopost(blocked_info, num_output, nopad_input_info, kernel_info_list, output_info_list, conv_option.value, subblock_mode);
+
+  if (padded_input_info)
+  {
+    hwtask_wait_complete(hwtask_busy_fx);
+    hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
+    matrix_free(padded_input_info);
+  }
   return hwtask_busy_fx;
 }
 
-ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedoutput_nopost_nopad(ervp_blocked_matrix_info_t *blocked_info, int num_input, const ErvpMatrixInfo **input_info_list, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
+ervp_hwtask_busy_fx_t blocked_matrix_conv_sharedinput(ervp_blocked_matrix_info_t *blocked_info, int num_output, const ErvpMatrixInfo *input_info, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo **output_info_list, unsigned int conv_option_value)
+{
+  return blocked_matrix_conv_sharedinput_prepad(blocked_info, num_output, input_info, kernel_info_list, output_info_list, conv_option_value);
+}
+
+ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedoutput_nopad_nopost_nohwzeropad(ervp_blocked_matrix_info_t *blocked_info, int num_input, const ErvpMatrixInfo **input_info_list, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
 {
   assert(blocked_info);
   assert(blocked_info->subop_mapping);
@@ -609,39 +772,85 @@ ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedoutput_nopost_nopad(ervp_blocke
   return hwtask_busy_fx;
 }
 
-static ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedoutput_nopost(ervp_blocked_matrix_info_t *blocked_info, int num_input, const ErvpMatrixInfo **input_info_list, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
+// the subop (HW) applies the zero pad, so each block gets only the part of the pad on its boundary
+// every input has the same size
+static ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedoutput_nopost_hwzeropad(ervp_blocked_matrix_info_t *blocked_info, int num_input, const ErvpMatrixInfo **input_info_list, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
+{
+  ervp_mconv_option_t conv_option;
+  conv_option.value = conv_option_value;
+  _blocked_matrix_conv_assert_hwzeropad(blocked_info, input_info_list[0], kernel_info_list[0], output_info, conv_option);
+
+  const int output_block_size = _matrix_conv_output_rows_per_block(blocked_info->block_size, kernel_info_list[0]->num_row);
+
+  ErvpMatrixInfo padded_input_list[num_input];
+  ErvpMatrixInfo *p_block_i_list[num_input];
+  ErvpMatrixInfo block_i_list[num_input];
+  for (int i = 0; i < num_input; i++)
+  {
+    assert(input_info_list[i]->num_row == input_info_list[0]->num_row);
+    assert(input_info_list[i]->num_col == input_info_list[0]->num_col);
+    padded_input_list[i] = _blocked_matrix_conv_padded_input(input_info_list[i], conv_option.br.pad_option);
+    p_block_i_list[i] = &(block_i_list[i]);
+    block_i_list[i] = *(input_info_list[i]);
+    block_i_list[i].is_sub = 1;
+  }
+  ErvpMatrixInfo block_o = *output_info;
+  block_o.is_sub = 1;
+  ervp_mconv_option_t block_conv_option = conv_option;
+
+  // m, n are indexes of the output_matrix
+  ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
+  for (int m = 0; m < output_info->num_row; m += output_block_size)
+    for (int n = 0; n < output_info->num_col; n += output_block_size)
+    {
+      block_conv_option.br.pad_option = _blocked_matrix_conv_set_block_hwzeropad(input_info_list[0], kernel_info_list[0]->num_row, output_info, conv_option.br.pad_option, output_block_size, m, n, &(block_i_list[0]), &block_o);
+      block_o.addr = matrix_get_element_addr(output_info, m, n);
+      for (int i = 0; i < num_input; i++)
+      {
+        block_i_list[i].num_row = block_i_list[0].num_row;
+        block_i_list[i].num_col = block_i_list[0].num_col;
+        block_i_list[i].addr = matrix_get_element_addr(&(padded_input_list[i]), m + block_conv_option.br.pad_option.br.num_top, n + block_conv_option.br.pad_option.br.num_left);
+      }
+      hwtask_busy_fx = blocked_info->subop_mapping->matrix_conv_sharedoutput(blocked_info->subop_mapping, num_input, (const ErvpMatrixInfo **)p_block_i_list, kernel_info_list, &block_o, block_conv_option.value);
+    }
+  return hwtask_busy_fx;
+}
+
+// the pad remains only if it is sent to the subop with each block
+static ervp_hwtask_busy_fx_t _blocked_matrix_conv_sharedoutput_nopad_nopost(ervp_blocked_matrix_info_t *blocked_info, int num_input, const ErvpMatrixInfo **input_info_list, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo *output_info, unsigned int conv_option_value, int subblock_mode)
+{
+  assert(!mconv_option_has_postprocess(mconv_option_set(conv_option_value)));
+  if (subblock_mode != SUBBLOCK_BY_SW)
+    trackedvar_smart_flush(3, input_info_list[0]->addr, kernel_info_list[0]->addr, output_info->addr);
+  if (matrix_conv_has_pad(mconv_option_set(conv_option_value)))
+    return _blocked_matrix_conv_sharedoutput_nopost_hwzeropad(blocked_info, num_input, input_info_list, kernel_info_list, output_info, conv_option_value);
+  return _blocked_matrix_conv_sharedoutput_nopad_nopost_nohwzeropad(blocked_info, num_input, input_info_list, kernel_info_list, output_info, conv_option_value);
+}
+
+ervp_hwtask_busy_fx_t blocked_matrix_conv_sharedoutput_mode(ervp_blocked_matrix_info_t *blocked_info, int num_input, const ErvpMatrixInfo **input_info_list, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo *output_info, unsigned int conv_option_value, int subblock_mode)
 {
   ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
-  assert(!mconv_option_has_postprocess(mconv_option_set(conv_option_value)));
-  if (matrix_conv_has_pad(mconv_option_set(conv_option_value)))
+  ervp_mconv_option_t conv_option = mconv_option_set(conv_option_value);
+
+  // the zero pad of SUBBLOCK_BY_HW_ZEROPAD is sent to the subop with each block, and the other pads are applied in advance
+  const int pad_is_sent_to_subop = (subblock_mode == SUBBLOCK_BY_HW_ZEROPAD) && (conv_option.br.pad_option.br.mode == PADMODE_ZEROS);
+  const int pad_in_advance = matrix_conv_has_pad(conv_option) && !pad_is_sent_to_subop;
+  ErvpMatrixInfo *padded_input_info_list[num_input];
+  const ErvpMatrixInfo **nopad_input_info_list = input_info_list;
+  if (pad_in_advance)
   {
     ervp_mpad_option_t pad_option;
     pad_option.value = matrix_pad_gen_option(conv_option_value);
-    ErvpMatrixInfo *padded_input_info_list[num_input];
     for (int i = 0; i < num_input; i++)
     {
       padded_input_info_list[i] = matrix_pad_alloc_output(input_info_list[i], pad_option.value);
       hwtask_busy_fx = blocked_info->subop_mapping->matrix_pad(blocked_info->subop_mapping, input_info_list[i], padded_input_info_list[i], pad_option.value);
     }
-    ervp_mconv_option_t conv_option;
-    conv_option.value = conv_option_value;
+    hwtask_wait_complete(hwtask_busy_fx);
     conv_option.br.pad_option.value = 0;
-    hwtask_wait_complete(hwtask_busy_fx);
-    hwtask_busy_fx = _blocked_matrix_conv_sharedoutput_nopost_nopad(blocked_info, num_input, (const ErvpMatrixInfo **)padded_input_info_list, kernel_info_list, output_info, conv_option.value);
-    hwtask_wait_complete(hwtask_busy_fx);
-    hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
-    for (int i = 0; i < num_input; i++)
-      matrix_free(padded_input_info_list[i]);
+    nopad_input_info_list = (const ErvpMatrixInfo **)padded_input_info_list;
   }
-  else
-    hwtask_busy_fx = _blocked_matrix_conv_sharedoutput_nopost_nopad(blocked_info, num_input, (const ErvpMatrixInfo **)input_info_list, kernel_info_list, output_info, conv_option_value);
-  return hwtask_busy_fx;
-}
 
-ervp_hwtask_busy_fx_t blocked_matrix_conv_sharedoutput(ervp_blocked_matrix_info_t *blocked_info, int num_input, const ErvpMatrixInfo **input_info_list, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
-{
-  ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
-  ervp_mconv_option_t conv_option = mconv_option_set(conv_option_value);
   if (mconv_option_has_postprocess(conv_option))
   {
     const int stride = conv_option.br.stride_m1 + 1;
@@ -653,7 +862,7 @@ ervp_hwtask_busy_fx_t blocked_matrix_conv_sharedoutput(ervp_blocked_matrix_info_
     conv_option_nopost.value = 0;
     conv_option_nopost.br.pad_option = conv_option.br.pad_option;
 
-    hwtask_busy_fx = _blocked_matrix_conv_sharedoutput_nopost(blocked_info, num_input, input_info_list, kernel_info_list, temp_output_info, conv_option_nopost.value);
+    hwtask_busy_fx = _blocked_matrix_conv_sharedoutput_nopad_nopost(blocked_info, num_input, nopad_input_info_list, kernel_info_list, temp_output_info, conv_option_nopost.value, subblock_mode);
     hwtask_wait_complete(hwtask_busy_fx);
 
     // the stride is applied by subsampling, then rshift/clip/acc go into the real output
@@ -679,8 +888,21 @@ ervp_hwtask_busy_fx_t blocked_matrix_conv_sharedoutput(ervp_blocked_matrix_info_
     matrix_free(temp_output_info);
   }
   else
-    hwtask_busy_fx = _blocked_matrix_conv_sharedoutput_nopost(blocked_info, num_input, input_info_list, kernel_info_list, output_info, conv_option_value);
+    hwtask_busy_fx = _blocked_matrix_conv_sharedoutput_nopad_nopost(blocked_info, num_input, nopad_input_info_list, kernel_info_list, output_info, conv_option.value, subblock_mode);
+
+  if (pad_in_advance)
+  {
+    hwtask_wait_complete(hwtask_busy_fx);
+    hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
+    for (int i = 0; i < num_input; i++)
+      matrix_free(padded_input_info_list[i]);
+  }
   return hwtask_busy_fx;
+}
+
+ervp_hwtask_busy_fx_t blocked_matrix_conv_sharedoutput(ervp_blocked_matrix_info_t *blocked_info, int num_input, const ErvpMatrixInfo **input_info_list, const ErvpMatrixInfo **kernel_info_list, ErvpMatrixInfo *output_info, unsigned int conv_option_value)
+{
+  return blocked_matrix_conv_sharedoutput_prepad(blocked_info, num_input, input_info_list, kernel_info_list, output_info, conv_option_value);
 }
 
 /*

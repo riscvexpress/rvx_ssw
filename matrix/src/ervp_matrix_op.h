@@ -31,10 +31,10 @@ typedef union
   ervp_mpad_option_value_t value;
   struct __attribute__((packed))
   {
-    int num_rowu : 3;
-    int num_rowd : 3;
-    int num_colu : 3;
-    int num_cold : 3;
+    unsigned int num_bottom : 3;
+    unsigned int num_top : 3;
+    unsigned int num_right : 3;
+    unsigned int num_left : 3;
     unsigned int mode : 4;
   } br;
 } ervp_mpad_option_t;
@@ -272,10 +272,10 @@ static inline ervp_mpad_option_t mpad_option_set(int pad_amount, unsigned int pa
   assert((pad_amount >= 0) && (pad_amount <= 3));
   if (pad_mode == PADMODE_NONE)
     pad_amount = 0;
-  pad_option.br.num_rowd = pad_amount;
-  pad_option.br.num_rowu = pad_amount;
-  pad_option.br.num_cold = pad_amount;
-  pad_option.br.num_colu = pad_amount;
+  pad_option.br.num_top = pad_amount;
+  pad_option.br.num_bottom = pad_amount;
+  pad_option.br.num_left = pad_amount;
+  pad_option.br.num_right = pad_amount;
   pad_option.br.mode = pad_mode;
   return pad_option;
 }
@@ -285,7 +285,7 @@ static inline int mpad_option_has_pad(ervp_mpad_option_t pad_option)
   int result = (pad_option.br.mode != PADMODE_NONE);
   if (result == 0)
   {
-    assert((!pad_option.br.num_rowd && !pad_option.br.num_rowu && !pad_option.br.num_cold && !pad_option.br.num_colu));
+    assert((!pad_option.br.num_top && !pad_option.br.num_bottom && !pad_option.br.num_left && !pad_option.br.num_right));
   }
   return result;
 }
@@ -324,7 +324,7 @@ static inline int matrix_conv_has_pad(ervp_mconv_option_t conv_option)
 static inline int matrix_conv_output_rows(int input_row, int kernel_row, ervp_mconv_option_t conv_option)
 {
   ervp_mpad_option_t pad_option = mconv_option_get_pad_option(conv_option);
-  int output_rows = ((input_row + pad_option.br.num_rowd + pad_option.br.num_rowu - kernel_row) / (conv_option.br.stride_m1 + 1)) + 1;
+  int output_rows = ((input_row + pad_option.br.num_top + pad_option.br.num_bottom - kernel_row) / (conv_option.br.stride_m1 + 1)) + 1;
   assert(output_rows > 0);
   return output_rows;
 }
@@ -332,7 +332,7 @@ static inline int matrix_conv_output_rows(int input_row, int kernel_row, ervp_mc
 static inline int matrix_conv_output_cols(int input_col, int kernel_col, ervp_mconv_option_t conv_option)
 {
   ervp_mpad_option_t pad_option = mconv_option_get_pad_option(conv_option);
-  int output_cols = ((input_col + pad_option.br.num_cold + pad_option.br.num_colu - kernel_col) / (conv_option.br.stride_m1 + 1)) + 1;
+  int output_cols = ((input_col + pad_option.br.num_left + pad_option.br.num_right - kernel_col) / (conv_option.br.stride_m1 + 1)) + 1;
   assert(output_cols > 0);
   return output_cols;
 }
@@ -360,7 +360,7 @@ static inline int _matrix_conv_cal_start_row_index_of_input_matrix(int kernel_si
 {
   int input_index;
   input_index = output_row_index * (conv_option.br.stride_m1 + 1);
-  input_index -= mconv_option_get_pad_option(conv_option).br.num_rowd;
+  input_index -= mconv_option_get_pad_option(conv_option).br.num_top;
   return input_index;
 }
 
@@ -368,7 +368,7 @@ static inline int _matrix_conv_cal_start_col_index_of_input_matrix(int kernel_si
 {
   int input_index;
   input_index = output_col_index * (conv_option.br.stride_m1 + 1);
-  input_index -= mconv_option_get_pad_option(conv_option).br.num_cold;
+  input_index -= mconv_option_get_pad_option(conv_option).br.num_left;
   return input_index;
 }
 
@@ -379,14 +379,14 @@ static inline int matrix_pad_output_rows(int input_row, unsigned int pad_option_
 {
   ervp_mpad_option_t pad_option;
   pad_option.value = pad_option_value;
-  return input_row + pad_option.br.num_rowd + pad_option.br.num_rowu;
+  return input_row + pad_option.br.num_top + pad_option.br.num_bottom;
 }
 
 static inline int matrix_pad_output_cols(int input_col, unsigned int pad_option_value)
 {
   ervp_mpad_option_t pad_option;
   pad_option.value = pad_option_value;
-  return input_col + pad_option.br.num_cold + pad_option.br.num_colu;
+  return input_col + pad_option.br.num_left + pad_option.br.num_right;
 }
 
 ErvpMatrixInfo *matrix_pad_alloc_output(const ErvpMatrixInfo *input_info, unsigned int pad_option_value);
@@ -405,7 +405,7 @@ static inline int _matrix_downsample_cal_start_row_index_of_input_matrix(int out
 {
   int input_index;
   input_index = output_row_index * (downsample_option.br.stride_m1 + 1);
-  input_index -= downsample_option.br.pad_option.br.num_rowd;
+  input_index -= downsample_option.br.pad_option.br.num_top;
   return input_index;
 }
 
@@ -413,7 +413,7 @@ static inline int _matrix_downsample_cal_start_col_index_of_input_matrix(int out
 {
   int input_index;
   input_index = output_col_index * (downsample_option.br.stride_m1 + 1);
-  input_index -= downsample_option.br.pad_option.br.num_cold;
+  input_index -= downsample_option.br.pad_option.br.num_left;
   return input_index;
 }
 

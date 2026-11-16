@@ -72,6 +72,14 @@ static inline void *matrix_get_element_addr(const ErvpMatrixInfo *matrix, int ro
   return addr;
 }
 
+static inline void *matrix_get_virtual_element_addr(const ErvpMatrixInfo *matrix, int row_index, int col_index)
+{
+  uintptr_t addr = (uintptr_t)matrix->addr;
+  addr += ((matrix->stride_ls3 >> 3) * row_index);
+  addr += (matrix_datatype_size(matrix->datatype) * col_index);
+  return (void *)addr;
+}
+
 static inline int matrix_get_subbyte_rsa(const ErvpMatrixInfo *matrix, int row_index, int col_index)
 {
   int rsa;

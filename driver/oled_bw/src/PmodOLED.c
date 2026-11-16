@@ -33,7 +33,7 @@
 #include "ervp_delay.h"
 #include "ervp_multicore_synch.h"
 #include "ervp_external_peri_group_memorymap.h"
-#include "frvp_spi.h"
+#include "trvp_spi.h"
 
 /* ------------------------------------------------------------ */
 /*				Local Type Definitions							*/
@@ -42,7 +42,7 @@
 #define SPI_FREQ_OF_OLED	10000000
 #define SPI_MODE_OF_OLED	SPI_SCKMODE_3
 
-static const SpiConfig oled_spi_config = {SPI_DIVSOR(SPI_FREQ_OF_OLED), SPI_MODE_OF_OLED, (1<<SPI_INDEX_FOR_OLED), SPI_CSMODE_OFF, (SPI_FMT_PROTO(SPI_PROTO_S) | SPI_FMT_ENDIAN(SPI_ENDIAN_MSB) | SPI_FMT_LEN(8)), 1};
+static const SpiHostConfig oled_spi_config = {(1<<SPI_INDEX_FOR_OLED), SPI_DIVSOR(SPI_FREQ_OF_OLED), SPI_MODE_OF_OLED, 0};
 
 /* ------------------------------------------------------------ */
 /*				Global Variables								*/
@@ -170,7 +170,7 @@ OledInit()
 
 void oled_bw_config_spi()
 {
-	spi_configure(&oled_spi_config);
+	spi_host_configure(&oled_spi_config);
 }
 
 void
@@ -464,9 +464,9 @@ OledUpdate()
 void
 OledPutBuffer(int cb, unsigned char * rgbTx)
 {
-	spi_start();
-	spi_write(cb, rgbTx);
-	spi_end();
+	spi_host_start();
+	spi_host_transmit(cb, rgbTx);
+	spi_host_end();
 }
 
 /* ------------------------------------------------------------ */
@@ -488,9 +488,9 @@ OledPutBuffer(int cb, unsigned char * rgbTx)
 void
 Spi2PutByte(unsigned char bVal)
 {
-	spi_start();
-	spi_write(1, &bVal);
-	spi_end();
+	spi_host_start();
+	spi_host_transmit(1, &bVal);
+	spi_host_end();
 }
 
 /* ------------------------------------------------------------ */

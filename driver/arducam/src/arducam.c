@@ -10,7 +10,7 @@ int arducam_width = 0;
 int arducam_height = 0;
 int arducam_stride = 0;
 
-static SpiConfig arducam_spi_config = {SPI_DIVSOR(ARDUCAM_SPI_FREQ), ARDUCAM_SPI_MODE, (1<<ARDUCAM_SPI_PORT_ID), SPI_CSMODE_OFF, (SPI_FMT_PROTO(SPI_PROTO_S) | SPI_FMT_ENDIAN(SPI_ENDIAN_MSB) | SPI_FMT_LEN(8)), 1};
+static SpiHostConfig arducam_spi_config = {(1<<ARDUCAM_SPI_PORT_ID), SPI_DIVSOR(ARDUCAM_SPI_FREQ), ARDUCAM_SPI_MODE, 0};
 
 void arducam_config_hw(void)
 {
@@ -19,12 +19,12 @@ void arducam_config_hw(void)
 	configure_i2c(ARDUCAM_I2C_INDEX, ARDUCAM_I2C_FREQ, I2C_ENABLE, I2C_INTERRUPT_DISABLE);
 
 	// SPI Init
-	spi_configure(&arducam_spi_config);
+	spi_host_configure(&arducam_spi_config);
 }
 
 void arducam_config_spi()
 {
-	spi_configure(&arducam_spi_config);
+	spi_host_configure(&arducam_spi_config);
 }
 
 ErvpImage* arducam_alloc_image(ErvpImage* prepared)
@@ -394,12 +394,12 @@ int arducam_capture_single_rgb(unsigned char *rgb565, int width, int height, int
 	
 	addr = regSPICAM_BURST_READ;
 
-	spi_start(); // CS LOW
-	spi_write(1, &addr);
+	spi_host_start(); // CS LOW
+	spi_host_transmit(1, &addr);
 
 	rgb_image_row = 0;
 	for(y=0; y<arducam_height; y++) {
-		spi_read(arducam_stride, line_data);
+		spi_host_receive(arducam_stride, line_data);
 
 		if(y>=start_row)
 		{
@@ -425,7 +425,7 @@ int arducam_capture_single_rgb(unsigned char *rgb565, int width, int height, int
 	}
 	//printf("%d %d\n", rgb_image_col, rgb_image_row);
 
-	spi_end(); // CS LOW
+	spi_host_end(); // CS LOW
 
 	// clear the fifo done flag
 	arducam_spi_write_abyte(regSPICAM_FIFO, CLEAR_WRITE_FIFO_DONE_FLAG);
@@ -449,12 +449,12 @@ int get_yuv(YUV *yuv_image, int width, int height, int sample)
 	//printf("%d %d\n", start_col, start_row);
 	addr = regSPICAM_BURST_READ;
 
-	spi_start(); // CS LOW
-	spi_write(1, &addr);
+	spi_host_start(); // CS LOW
+	spi_host_transmit(1, &addr);
 
 	yuv_image_row = 0;
 	for(y=0; y<arducam_height; y++) {
-		spi_read(arducam_stride, line_data);
+		spi_host_receive(arducam_stride, line_data);
 
 		if(y>=start_row)
 		{
@@ -481,7 +481,7 @@ int get_yuv(YUV *yuv_image, int width, int height, int sample)
 	}
 	//printf("%d %d\n", yuv_image_col, yuv_image_row);
 
-	spi_end(); // CS LOW
+	spi_host_end(); // CS LOW
 }
 
 
@@ -561,20 +561,20 @@ int arducam_capture_single_yuv(uint8_t *img, int width, int height, int stride)
 
 		addr = regSPICAM_BURST_READ;
 
-		spi_start(); // CS LOW
-		spi_write(1, &addr);
+		spi_host_start(); // CS LOW
+		spi_host_transmit(1, &addr);
 
 		for(y=0; y<height; y++) {
 			p = img + y*stride;
 			for(x=0; x<width*2; x+=4) {
-				spi_read(1, &p[x+0]);
-				spi_read(1, &p[x+1]);
-				spi_read(1, &p[x+2]);
-				spi_read(1, &p[x+3]);
+				spi_host_receive(1, &p[x+0]);
+				spi_host_receive(1, &p[x+1]);
+				spi_host_receive(1, &p[x+2]);
+				spi_host_receive(1, &p[x+3]);
 			}
 		}
 
-		spi_end(); // CS LOW
+		spi_host_end(); // CS LOW
 		//printf("burst read done. %d\n", timer_get_cur_ms());
 	}
 #endif
@@ -703,14 +703,14 @@ uint32_t get_jpeg(unsigned char *jpeg)
 	addr = regSPICAM_BURST_READ;
 
 
-	spi_start(); // CS LOW
-	spi_write(1, &addr);
-	//spi_read(fifo_size, jpeg);
+	spi_host_start(); // CS LOW
+	spi_host_transmit(1, &addr);
+	//spi_host_receive(fifo_size, jpeg);
 
 	while ( fifo_size-- )
 	{
 		temp_last = temp;
-		spi_read(1, &temp);
+		spi_host_receive(1, &temp);
 		//printf("0x%02x ", temp);
 			//printf("fifo_size : %d\n", fifo_size);
 
@@ -719,7 +719,7 @@ uint32_t get_jpeg(unsigned char *jpeg)
 		{
 			jpeg[i++] = temp;  //save the last  0XD9     
 			//Write the remain bytes in the buffer
-			spi_end(); // CS HIGH
+			spi_host_end(); // CS HIGH
 			printf("fifo_size : %d\n", fifo_size);
 			printf("this is end: %d\n", i);
 			printf("IMG save OK !\n"); 
@@ -735,11 +735,11 @@ uint32_t get_jpeg(unsigned char *jpeg)
 			//	else
 			//	{
 			//		//Write BUF_SIZE bytes image data to file
-			//		spi_end(); // CS HIGH
+			//		spi_host_end(); // CS HIGH
 			//		i = 0;
 			//		jpeg[i++] = temp;
-			//		spi_start(); // CS LOW
-			//		spi_write(1, &addr);
+			//		spi_host_start(); // CS LOW
+			//		spi_host_transmit(1, &addr);
 			//	}        
 		}
 		else if ((temp == 0xD8) & (temp_last == 0xFF))

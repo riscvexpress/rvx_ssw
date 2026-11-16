@@ -1,4 +1,5 @@
 #include "ervp_printf.h"
+#include "ervp_log.h"
 
 #include "ervp_assert.h"
 #include "ervp_platform_controller_memorymap_offset.h"
@@ -43,13 +44,13 @@ int get_node_id()
 void print_noc_version()
 {
 	mmio_read_string(NOC_MMAP(MMAP_OFFSET_INFO_VERSION0),temp_string,NAME_STRING_SIZE);
-	printf("\n[NOC:INFO] %s", temp_string);
+	rvx_log_info("NOC", "%s", temp_string);
 }
 
 void print_noc_config()
 {
 	mmio_read_string(NOC_MMAP(MMAP_OFFSET_INFO_CONFIG0),temp_string,NAME_STRING_SIZE);
-	printf("\n[NOC:INFO] Config: %s", temp_string);
+	rvx_log_info("NOC", "Config: %s", temp_string);
 }
 
 void print_noc_ip_number()
@@ -57,7 +58,7 @@ void print_noc_ip_number()
 	int num_master, num_slave;
 	num_master = mmio_read_data(NOC_MMAP(MMAP_OFFSET_INFO_NUM_MASTER));
 	num_slave = mmio_read_data(NOC_MMAP(MMAP_OFFSET_INFO_NUM_SLAVE));
-	printf("\n[NOC:INFO] master: %d, slave: %d", num_master, num_slave);
+	rvx_log_info("NOC", "master: %d, slave: %d", num_master, num_slave);
 }
 
 void print_noc_info()
@@ -84,7 +85,7 @@ void __initialize_ip_info(int type, int index)
 	ip_info[type][index].node_id = mmio_read_data(NI_MMAP(type,index,MMAP_OFFSET_CONTROLLER_NODEID));
 	if(ip_info[type][index].node_id!=index)
 	{
-		printf_must("\n[RVX/NOC/ERROR] %s %d has MISMATCHED node id %d", get_type_name(type), index, ip_info[type][index].node_id);
+		rvx_log_error("NOC", "%s %d has MISMATCHED node id %d", get_type_name(type), index, ip_info[type][index].node_id);
 		exit(ERROR_SYSTEM_NOC);
 	}
 	mmio_read_string(NI_MMAP(type,index,MMAP_OFFSET_CONTROLLER_NAME0),ip_info[type][index].node_name,NAME_STRING_SIZE);
@@ -108,7 +109,7 @@ void __initialize_info()
 
 void print_ip_name_(int type, int index)
 {
-	printf("\n[NOC:INFO] %s %d: %s", get_type_name(type), ip_info[type][index].node_id, ip_info[type][index].node_name);
+	rvx_log_info("NOC", "%s %d: %s", get_type_name(type), ip_info[type][index].node_id, ip_info[type][index].node_name);
 }
 
 void print_ip_list()
@@ -154,7 +155,7 @@ void print_monitor_status()
 	__initialize_info();
 	for(i=0; i<num_master; i++)
 	{
-		printf("\n[NOC:INFO] %s Monitor: ", master_info[i].node_name);
+		rvx_log_info("NOC", "%s Monitor: ", master_info[i].node_name);
 		if(mmio_read_data(MNI_MMAP(i,MMAP_OFFSET_CONTROLLER_MONITOR_ENABLE))==1)
 			printf("Enabled");
 		else
@@ -162,7 +163,7 @@ void print_monitor_status()
 	}
 	for(i=0; i<num_slave; i++)
 	{
-		printf("\n[NOC:INFO] %s Monitor: ", slave_info[i].node_name);
+		rvx_log_info("NOC", "%s Monitor: ", slave_info[i].node_name);
 		if(mmio_read_data(SNI_MMAP(i,MMAP_OFFSET_CONTROLLER_MONITOR_ENABLE))==1)
 			printf("Enabled");
 		else
@@ -209,9 +210,9 @@ void disable_ip(char* name)
 		}
 	}
 	if(done)
-		printf("\n[NOC:INFO] IP \"%s\" is disabled", name);
+		rvx_log_info("NOC", "IP \"%s\" is disabled", name);
 	else
-		printf("\n[NOC:INFO] No IP has a name \"%s\"", name);
+		rvx_log_info("NOC", "No IP has a name \"%s\"", name);
 }
 
 // This does NOT work due to hardware limitation
@@ -223,11 +224,11 @@ void check_undefined_access()
 	int num = mmio_read_data(NOC_MMAP(MMAP_OFFSET_ELOG_COUNT));
 	int node_id;
 	__initialize_info();
-	printf("\n[NOC:INFO] Number of Undefined Region Access: %d\n", num);
+	rvx_log_info("NOC", "Number of Undefined Region Access: %d\n", num);
 	for(i=0; i<num; i++)
 	{
 		node_id = mmio_read_data(ELOG_MMAP(i,MMAP_OFFSET_ELOG_MASTER));
-		printf("\n[NOC:INFO] Master %s", master_info[node_id].node_name);
+		rvx_log_info("NOC", "Master %s", master_info[node_id].node_name);
 		if(mmio_read_data(ELOG_MMAP(i,MMAP_OFFSET_ELOG_VALID))==1)
 		{
 			if(ELOG_MMAP(i,MMAP_OFFSET_ELOG_RW))
@@ -237,7 +238,7 @@ void check_undefined_access()
 			printf(", Addr: 0x%x", mmio_read_data(ELOG_MMAP(i,MMAP_OFFSET_ELOG_ADDR)));
 		}
 		else
-			printf_must("\n[RVX/NOC/ERROR] Invalid info, which may be a bug");
+			rvx_log_error("NOC", "Invalid info, which may be a bug");
 	}
 }
 */

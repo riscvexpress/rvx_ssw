@@ -24,7 +24,7 @@ static void npx_forward_conv2d_layer_matrix_old(npx_conv2d_layer_t *layer, ervp_
   {
     printf_function();
     assert(mop_mapping);
-    assert_pointer(2, layer, state);
+    assert(layer && state);
 
     const int timesteps = state->input_tsseq->timesteps;
     assert(state->output_tsseq == NULL);
@@ -34,8 +34,8 @@ static void npx_forward_conv2d_layer_matrix_old(npx_conv2d_layer_t *layer, ervp_
     const NpxTensorInfo *const input_tensor = state->input_tsseq->sequence[0];
     assert(layer->iodata.in_size[0] == input_tensor->size[0]);
     assert(layer->iodata.in_size[1] == input_tensor->size[1]);
-    assert(layer->iodata.out_size[0] == (((input_tensor->size[0] + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
-    assert(layer->iodata.out_size[1] == (((input_tensor->size[1] + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
+    assert(layer->iodata.out_size[0] == (((input_tensor->size[0] + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
+    assert(layer->iodata.out_size[1] == (((input_tensor->size[1] + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
 
     int size[3];
     size[0] = layer->iodata.out_size[0];
@@ -103,7 +103,7 @@ static void _forward_conv2d_layer_matrix_sharedoutput(npx_conv2d_layer_t *layer,
   ervp_hwtask_busy_fx_t hwtask_busy_fx = HWTASK_BUSY_FX_NULL;
   ervp_mconv_option_t conv_option;
   conv_option.value = 0;
-  conv_option = matrix_conv_set_pad(conv_option, layer->pad_options.br.num_rowd, layer->pad_options.br.mode);
+  conv_option = matrix_conv_set_pad(conv_option, layer->pad_options.br.num_top, layer->pad_options.br.mode);
   conv_option.br.stride_m1 = layer->stride - 1;
 
   for (int i = 0; i < timesteps; i++)
@@ -160,7 +160,7 @@ static void _forward_conv2d_layer_matrix_sharedinput(npx_conv2d_layer_t *layer, 
   ervp_mconv_option_t conv_option;
   conv_option.value = 0;
   conv_option.br.mop_option.br.acc = 1;
-  conv_option = matrix_conv_set_pad(conv_option, layer->pad_options.br.num_rowd, layer->pad_options.br.mode);
+  conv_option = matrix_conv_set_pad(conv_option, layer->pad_options.br.num_top, layer->pad_options.br.mode);
   conv_option.br.stride_m1 = layer->stride - 1;
 
   // hwtask_busy_fx = npx_tensor_zero(mop_mapping, npx_tensor_get_original_tensor(state->output_tsseq->sequence[0]));
@@ -202,14 +202,14 @@ static void _forward_conv2d_layer_matrix_sharedinput(npx_conv2d_layer_t *layer, 
 
 static void _check_conv2d_layer(npx_conv2d_layer_t *layer, ervp_mop_mapping_t *mop_mapping, npx_layerio_state_t *state)
 {
-  assert_pointer(2, layer, state);
+  assert(layer && state);
   assert(state->output_tsseq == NULL);
 
   const NpxTensorInfo *const input_tensor = state->input_tsseq->sequence[0];
   assert(layer->iodata.in_size[0] == npx_tensor_get_size(input_tensor, 0));
   assert(layer->iodata.in_size[1] == npx_tensor_get_size(input_tensor, 1));
-  assert(layer->iodata.out_size[0] == (((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
-  assert(layer->iodata.out_size[1] == (((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_rowd - layer->kernel_size) / layer->stride) + 1));
+  assert(layer->iodata.out_size[0] == (((npx_tensor_get_size(input_tensor, 0) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
+  assert(layer->iodata.out_size[1] == (((npx_tensor_get_size(input_tensor, 1) + 2 * layer->pad_options.br.num_top - layer->kernel_size) / layer->stride) + 1));
 }
 
 __attribute__((weak)) void npx_forward_conv2d_layer_reuse(void *layer_ptr, ervp_mop_mapping_t *mop_mapping, npx_layerio_state_t *state)
@@ -223,13 +223,11 @@ __attribute__((weak)) void npx_forward_conv2d_layer_reuse(void *layer_ptr, ervp_
   else
   {
     // NOT supported
-    if (layer->pad_options.br.num_rowd > 0)
+    if (layer->pad_options.br.num_top > 0)
       assert(layer->pad_options.br.mode == PADMODE_ZEROS);
 
     int shares_output = 0;
-    if (layer->pad_options.br.num_rowd != 0)
-      shares_output = 0;
-    else if (layer->stride != 1)
+    if (layer->stride != 1)
       shares_output = 0;
     else if ((layer->in_channels_per_group == 1) && (layer->out_channels_per_group == 1))
       shares_output = 1;

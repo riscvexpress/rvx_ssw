@@ -737,7 +737,7 @@ void *image_get_macro_pixel_addr(const ErvpImage *const image, int plane_index, 
   void *result;
   addr_offset = col_index_cliped * image_get_macro_pixel_size(image, plane_index);
   result = row_base + addr_offset;
-  assert_invalid_data_pointer(result);
+  assert_msg(check_if_data_pointer_is_valid(result), "invalid data pointer: 0x%x", result);
   return result;
 }
 

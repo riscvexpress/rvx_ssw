@@ -35,7 +35,7 @@ static inline void increase_delayed_free_list()
     int old_size = PER_CORE(free_list_max_size) * sizeof(void *);
     PER_CORE(free_list_max_size) = PER_CORE(free_list_max_size) << 1;
     PER_CORE(delayed_free_list) = malloc(PER_CORE(free_list_max_size) * sizeof(void *));
-    memcpy_rvx(PER_CORE(delayed_free_list), old_ptr, old_size);
+    memcpy(PER_CORE(delayed_free_list), old_ptr, old_size);
     free_rvx(old_ptr);
   }
 }
@@ -140,6 +140,7 @@ void *trackedvar_malloc(size_t size)
   assert(size > 0);
   size_t aligned_size = ALIGN_UP_POW2(size, CACHE_LINE_SIZE);
   size_t extended_size = aligned_size + MEMORY_BLOCK_INFO_SIZE;
+  assert_must_msg(extended_size > size, "trackedvar_malloc fails");
   memory_block_info_t *block = NULL;
 
 #ifdef USE_REUSE_MEMORY_ALLOCATOR
@@ -148,13 +149,17 @@ void *trackedvar_malloc(size_t size)
   if (block == NULL)
   {
     _acquire_lock_for_malloc();
+    _prepare_heap_dram_for_multicore();
     // place ptr and block in different cache lines to avoid cache-line conflicts
-    heap_dram_addr += MEMORY_BLOCK_INFO_SIZE;
-    heap_dram_addr = ALIGN_UP_POW2(heap_dram_addr, CACHE_LINE_SIZE);
-    assert(heap_dram_size >= aligned_size);
-    block = (memory_block_info_t *)(heap_dram_addr - MEMORY_BLOCK_INFO_SIZE);
-    heap_dram_addr += aligned_size;
+    uintptr_t ptr_addr = ALIGN_UP_POW2(heap_dram_addr + MEMORY_BLOCK_INFO_SIZE, CACHE_LINE_SIZE);
+    uintptr_t total_size = ptr_addr + aligned_size - heap_dram_addr;
+    if ((total_size >= aligned_size) && (total_size <= _get_heap_dram_remaining()))
+    {
+      block = (memory_block_info_t *)(ptr_addr - MEMORY_BLOCK_INFO_SIZE);
+      heap_dram_addr += total_size;
+    }
     _release_lock_for_malloc();
+    assert_must_msg(block, "trackedvar_malloc fails");
 
     block->size = extended_size;
   }

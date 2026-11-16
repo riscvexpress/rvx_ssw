@@ -26,30 +26,30 @@ static inline void _matrix_conv_float_each_sw(const ErvpMatrixInfo *input_info, 
 
       if(i_row_index < 0)
       {
-        assert(pad_option.br.num_rowd);
-        assert(i_row_index >= (0 - pad_option.br.num_rowd));
+        assert(pad_option.br.num_top);
+        assert(i_row_index >= (0 - pad_option.br.num_top));
         i_row_index = 0;
         is_pad = 1;
       }
       else if(i_row_index >= input_info->num_row)
       {
-        assert(pad_option.br.num_rowu);
-        assert(i_row_index < (input_info->num_row + pad_option.br.num_rowu));
+        assert(pad_option.br.num_bottom);
+        assert(i_row_index < (input_info->num_row + pad_option.br.num_bottom));
         i_row_index = input_info->num_row - 1;
         is_pad = 1;
       }
 
       if(i_col_index < 0)
       {
-        assert(pad_option.br.num_cold);
-        assert(i_col_index >= (0 - pad_option.br.num_cold));
+        assert(pad_option.br.num_left);
+        assert(i_col_index >= (0 - pad_option.br.num_left));
         i_col_index = 0;
         is_pad = 1;
       }
       else if(i_col_index >= input_info->num_col)
       {
-        assert(pad_option.br.num_colu);
-        assert(i_col_index < (input_info->num_col + pad_option.br.num_colu));
+        assert(pad_option.br.num_right);
+        assert(i_col_index < (input_info->num_col + pad_option.br.num_right));
         i_col_index = input_info->num_col - 1;
         is_pad = 1;
       }

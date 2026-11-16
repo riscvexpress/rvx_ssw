@@ -4,6 +4,7 @@
 #include "ervp_assert.h"
 #include "ervp_misc_util.h"
 #include "ervp_printf.h"
+#include "ervp_log.h"
 #include "ervp_real_clock.h"
 #include "ervp_profiling.h"
 #include "core_dependent.h"
@@ -46,7 +47,7 @@ static inline void __exit_profiling(int interrupt_status)
 static void profiling_warning()
 {
 #ifndef SILENT_FOR_PROFILING
-	printf_must("\n[RVX/PROFILING/WARNING] includes printf time\n");
+	rvx_log_warning("PROFILING", "includes printf time\n");
 #endif
 }
 
@@ -70,7 +71,8 @@ void profiling_init()
 static void _profiling_section_print(const profile_t *section, float min_accurate_ms)
 {
 	float average_ms, total_ms;
-	printf_must("\n\n[section] %s", section->name);
+	printf_must("\n");
+	rvx_log_profile("SECTION", "%s", section->name);
 	printf_must("\ntotal tick %llu<<%u", section->num_tick_rshifted, section->shift_amount);
 	printf_must("\nnum_called %u", section->num_called);
 	if (section->num_called == 0)
@@ -85,7 +87,7 @@ static void _profiling_section_print(const profile_t *section, float min_accurat
 	printf_must("\naverage time (ms) %.4f", average_ms);
 	if (average_ms <= min_accurate_ms)
 	{
-		printf_must("\n[RVX/PROFILING/WARNING] NOT accurate due to short running time");
+		rvx_log_warning("PROFILING", "NOT accurate due to short running time");
 	}
 }
 
@@ -203,7 +205,10 @@ void profiling_print()
 		if (PER_CORE_OF(section_table, core_index) == NULL)
 			continue;
 		if (num_table > 1)
-			printf_must("\n\n[core %d]", core_index);
+			{
+			printf_must("\n");
+			rvx_log_profile("CORE", "%d", core_index);
+		}
 		HASH_SORT(PER_CORE_OF(section_table, core_index), compare_name);
 		for (profile_t *section = PER_CORE_OF(section_table, core_index); section != NULL; section = (profile_t *)(section->hh.next))
 		{

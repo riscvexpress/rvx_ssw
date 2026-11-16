@@ -1,4 +1,5 @@
 #include "ervp_printf.h"
+#include "ervp_log.h"
 #include "ervp_printf_section.h"
 #include "ervp_malloc.h"
 #include "ervp_memory_util.h"
@@ -47,7 +48,7 @@ void npx_network_load_parameters(const npx_network_t *net, const char *filename)
   assert(net);
   FAKEFILE *fp;
   fp = ffopen(filename, "r");
-  printf("\nparam size: %d\n", fakefile_get_size(fp));
+  rvx_log_info("NPX", "param size: %d\n", fakefile_get_size(fp));
 
   int i;
   for (i = 0; i < net->num_layer; i++)
@@ -149,7 +150,7 @@ void npx_network_print(const npx_network_t *net)
 {
   assert(net);
   const char *net_type_seq = _npx_network_convert_to_pattern(net);
-  printf("\n[structure] %s", net_type_seq);
+  rvx_log_info("NPX", "structure: %s", net_type_seq);
   for (int i = 0; i < net->num_layer; i++)
   {
     assert(net->layer_compute_seq[i]);
@@ -202,8 +203,8 @@ _npx_foward_layer_sequence(npx_layer_compute_t **layer_compute_seq, const npx_la
       section = profiling_start_by_name(section_name);
     }
     npx_layer_compute_t *layer_compute = layer_compute_seq[i];
-    assert_pointer(1, layer_compute);
-    assert_pointer(1, layer_compute->forward);
+    assert(layer_compute);
+    assert(layer_compute->forward);
     layer_compute->forward(layer_compute->layer, layer_compute->mop_mapping, &state);
     assert(state.output_tsseq != NULL);
     assert(state.output_tsseq->scaled > 0.0f);
@@ -232,7 +233,7 @@ npx_inference(npx_network_t *net, const npx_layerio_tsseq_t *input_tsseq, int la
 {
   npx_layerio_tsseq_t *result;
   NPX_PROFILING_START();
-  assert_pointer(2, net, input_tsseq);
+  assert(net && input_tsseq);
   const int SKIP_SIM = 1;
   if ((layer_end_index - layer_start_index) == 1)
   {
@@ -278,7 +279,7 @@ npx_testvector_t *npx_load_testvector(const char *tv_fname, npx_network_t *net)
   result->tv_size = fp->head->size;
   result->tv_data = (int8_t *)fp->head->data;
   ffclose(fp);
-  printf("\ntestvector: %s (%d)", tv_fname, result->tv_size);
+  rvx_log_info("NPX", "testvector: %s (%d)", tv_fname, result->tv_size);
 
   result->num_layer = net->num_layer;
   result->layer_output_size = malloc(sizeof(int) * result->num_layer);
@@ -397,7 +398,7 @@ static const int PRINT_VERIFY_ALL_RESULT = 0;
 
 void npx_verify_with_testvector(npx_layerio_tsseq_t *output_tsseq, npx_testvector_t *tv, int layer_index)
 {
-  assert_pointer(2, output_tsseq, tv);
+  assert(output_tsseq && tv);
   assert(output_tsseq->timesteps > 0);
   printf_section(SKIP_SIM, "%s %d %d", __func__, layer_index, npx_tensor_elements(output_tsseq->sequence[0]) * output_tsseq->timesteps);
   int t = -1;
@@ -469,9 +470,9 @@ int npx_classify(npx_network_t *net, const npx_layerio_tsseq_t *output_tsseq, in
   {
     int correct = (max_index == sample->label);
     if (correct)
-      printf("\nclassification CORRECT: %d (label:%d)", max_index, sample->label);
+      rvx_log_info("NPX", "classification CORRECT: %d (label:%d)", max_index, sample->label);
     else
-      printf("\nclassification NOT CORRECT: %d (label:%d)", max_index, sample->label);
+      rvx_log_warning("NPX", "classification NOT CORRECT: %d (label:%d)", max_index, sample->label);
   }
 
   free(output_acc);

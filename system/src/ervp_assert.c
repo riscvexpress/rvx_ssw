@@ -1,36 +1,17 @@
 #include <stdarg.h>
 
 #include "ervp_assert.h"
+#include "ervp_log.h"
 #include "ervp_platform_api.h"
 #include "ervp_variable_allocation.h"
 
 void _assert_fail_rvx(const char* file, unsigned int line, const char* func, const char* format, ...)
 {
-  const char *file_name = file;
-  while (*file_name++ != 0)
-    ;
-  while (1)
-  {
-    if (file_name == file)
-      break;
-    if (*file_name == '/')
-    {
-      file_name++;
-      break;
-    }
-    if (*file_name == '\\')
-    {
-      file_name++;
-      break;
-    }
-    file_name--;
-  }
-
-  printf_must("\nAssert Failed: ");
+  const char *file_name = debug_get_file_name_only(file);
 
   va_list va;
   va_start(va, format);
-  vprintf_rvx(format, va);
+  rvx_vlog(RVX_LOG_ERROR, "ASSERT", format, va);
   va_end(va);
 
   printf_must("\n[%s @%d] %s", file_name, line, func);
@@ -39,7 +20,7 @@ void _assert_fail_rvx(const char* file, unsigned int line, const char* func, con
 }
 
 __attribute__ ((weak))
-int check_if_data_porinter_is_valid(void *p)
+int check_if_data_pointer_is_valid(void *p)
 {
   int valid = 0;
   if (0)

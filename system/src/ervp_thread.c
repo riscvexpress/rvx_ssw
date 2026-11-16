@@ -1,5 +1,6 @@
 #include "ervp_thread.h"
 #include "ervp_assert.h"
+#include "ervp_log.h"
 #include "ervp_variable_allocation.h"
 #include "ervp_core_id.h"
 #include "ervp_lock.h"
@@ -13,7 +14,7 @@
 
 int thread_create(ervp_thread_t *thr, task_fx func, void *arg)
 {
-	printf_must("\n[RVX/INFO\] No Worker");
+	rvx_log_info("THREAD", "No Worker");
 	assert(func != NULL);
 	int ret = func(arg);
 	thr->worker_core_id = ret;

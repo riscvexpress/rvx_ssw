@@ -16,17 +16,22 @@ typedef struct
   unsigned int dma_enable : 1;
   unsigned int infinite_repeat : 1;
   // unsigned int dma_axi_size : 3;
-} extinput_inst_t;
+} ervp_extinput_inst_t;
 
-static inline void extinput_inst_init(const extinput_inst_t *inst)
+typedef struct
+{
+  unsigned char active : 1;
+} ervp_extinput_config_t;
+
+static inline void extinput_inst_init(const ervp_extinput_inst_t *inst)
 {
   int *p = (int *)inst;
-  int size = (sizeof(extinput_inst_t) + sizeof(int) - 1) / sizeof(int);
+  int size = (sizeof(ervp_extinput_inst_t) + sizeof(int) - 1) / sizeof(int);
   for (int i = 0; i < size; i++)
     p[i] = 0;
 }
 
-static inline void extinput_inst_push(const ervp_mmiox1_hwinfo_t *const hwinfo, const extinput_inst_t *inst, int enable_itr)
+static inline void extinput_inst_push(const ervp_mmiox1_hwinfo_t *const hwinfo, const ervp_extinput_inst_t *inst, int enable_itr)
 {
   mmiox1_inst_push(hwinfo, inst, 1, enable_itr);
 }
@@ -42,5 +47,18 @@ static inline void extinput_inst_push(const ervp_mmiox1_hwinfo_t *const hwinfo, 
 #define extinput_has_log mmiox1_core_has_log
 #define extinput_data_clear mmiox1_output_clear
 #define extinput_data_pop mmiox1_output_pop
+
+void extinput_set_active(const ervp_extinput_hwinfo_t *const hwinfo, int active);
+int extinput_is_active(const ervp_extinput_hwinfo_t *const hwinfo);
+
+static inline void extinput_activate(const ervp_extinput_hwinfo_t *const hwinfo)
+{
+  extinput_set_active(hwinfo, 1);
+}
+
+static inline void extinput_deactivate(const ervp_extinput_hwinfo_t *const hwinfo)
+{
+  extinput_set_active(hwinfo, 0);
+}
 
 #endif
