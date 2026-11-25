@@ -30,9 +30,6 @@
 #ifdef INCLUDE_FUSE_BOX
 #include "ervp_fuse_box.h"
 #endif
-#ifdef INCLUDE_TCACHING
-#include "ervp_tcaching.h"
-#endif
 #ifdef INCLUDE_EDGE_VIDEO_SYSTEM
 #include "edge_video_system.h"
 #endif
@@ -300,7 +297,7 @@ void _init_heap()
 #ifdef USE_LARGE_RAM
 		heap_dram_addr = GET_LINKER_VAR(_heap_dram_baseaddr_);
 #ifdef INCLUDE_OFFCHIP_MRAM
-		heap_dram_addr += round_up_int(_get_backup_total_size(), DATA_ALIGN_SIZE);
+		heap_dram_addr += round_up_uint(_get_backup_total_size(), DATA_ALIGN_SIZE);
 #endif
 		heap_dram_lastaddr = (uintptr_t)LARGE_RAM_LASTADDR;
 #endif
@@ -320,17 +317,8 @@ void _init_each_core()
 {
 	_init_per_core();
 	init_core();
-#ifdef INCLUDE_TCACHING
-	tcaching_init();
-#endif
 	uintptr_t cacheable_start = GET_LINKER_VAR(_cacheable_start_);
 	uintptr_t cacheable_last = GET_LINKER_VAR(_cacheable_end_) - 1;
-#ifdef USE_TCACHING
-#ifdef USE_LARGE_RAM
-	assert((cacheable_start - 1) == TEMPORARY_CACHING_HEAP_LAST); // NOT continuous cacheable region!
-	cacheable_start = TEMPORARY_CACHING_HEAP_START;
-#endif
-#endif
 	init_cache(cacheable_start, cacheable_last);
 }
 

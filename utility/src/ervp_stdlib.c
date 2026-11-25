@@ -1,6 +1,7 @@
 //#include <stdio.h>
 // #include <ctype.h>
 #include "ervp_stdlib.h"
+#include <stddef.h>
 
 static inline int my_digit_value(int c)
 {
@@ -107,81 +108,114 @@ int atoi_rvx(const char *str)
   return sign * result;
 }
 
-double atof_rvx(const char *str)
+static double pow10_rvx(int n)
 {
-  double result = 0.0;
-  double fraction = 1.0;
+  double result = 1.0;
+  double base = 10.0;
+  while (n > 0)
+  {
+    if (n & 1)
+      result *= base;
+    base *= base;
+    n >>= 1;
+  }
+  return result;
+}
+
+double strtod_rvx(const char *nptr, char **endptr)
+{
+  const char *p = nptr;
+  double mantissa = 0.0;
   int sign = 1;
   int exponent = 0;
+  int num_digits = 0;
   int exp_sign = 1;
+  int exp_value = 0;
+  double result;
 
-  // Skip leading whitespaces
-  while (isspace(*str))
-  {
-    str++;
-  }
+  while (isspace(*p))
+    p++;
 
-  // Handle sign
-  if (*str == '-' || *str == '+')
+  if (*p == '-' || *p == '+')
   {
-    if (*str == '-')
-    {
+    if (*p == '-')
       sign = -1;
-    }
-    str++;
+    p++;
   }
 
-  // Process integer part
-  while (isdigit(*str))
+  while (isdigit(*p))
   {
-    result = result * 10.0 + (*str - '0');
-    str++;
+    if (mantissa < 1e17)
+      mantissa = mantissa * 10.0 + (*p - '0');
+    else
+      exponent++;
+    num_digits++;
+    p++;
   }
 
-  // Process fractional part
-  if (*str == '.')
+  if (*p == '.')
   {
-    str++;
-    while (isdigit(*str))
+    p++;
+    while (isdigit(*p))
     {
-      fraction *= 0.1;
-      result += (*str - '0') * fraction;
-      str++;
-    }
-  }
-
-  // Process scientific notation (e.g., 1.23e4 or 5.67E-2)
-  if (*str == 'e' || *str == 'E')
-  {
-    str++;
-    if (*str == '-' || *str == '+')
-    {
-      if (*str == '-')
+      if (mantissa < 1e17)
       {
+        mantissa = mantissa * 10.0 + (*p - '0');
+        exponent--;
+      }
+      num_digits++;
+      p++;
+    }
+  }
+
+  if (num_digits == 0)
+  {
+    if (endptr)
+      *endptr = (char *)nptr;
+    return 0.0;
+  }
+
+  if (*p == 'e' || *p == 'E')
+  {
+    const char *q = p + 1;
+    if (*q == '-' || *q == '+')
+    {
+      if (*q == '-')
         exp_sign = -1;
-      }
-      str++;
+      q++;
     }
-    while (isdigit(*str))
+    if (isdigit(*q))
     {
-      exponent = exponent * 10 + (*str - '0');
-      str++;
-    }
-
-    // Apply exponent
-    while (exponent > 0)
-    {
-      if (exp_sign == 1)
+      while (isdigit(*q))
       {
-        result *= 10.0;
+        if (exp_value < 10000)
+          exp_value = exp_value * 10 + (*q - '0');
+        q++;
       }
-      else
-      {
-        result *= 0.1;
-      }
-      exponent--;
+      exponent += exp_sign * exp_value;
+      p = q;
     }
   }
+
+  if (endptr)
+    *endptr = (char *)p;
+
+  if (exponent < 0)
+  {
+    if (exponent < -300)
+    {
+      mantissa /= pow10_rvx(300);
+      exponent += 300;
+    }
+    result = mantissa / pow10_rvx(-exponent);
+  }
+  else
+    result = mantissa * pow10_rvx(exponent);
 
   return sign * result;
+}
+
+double atof_rvx(const char *str)
+{
+  return strtod_rvx(str, NULL);
 }

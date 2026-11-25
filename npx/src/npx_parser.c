@@ -17,91 +17,96 @@
 #include "npx_network.h"
 #include "npx_tensor.h"
 
-static void parse_global_cfg(texpar_list_t *option_list, npx_network_t *net);
-static int is_global(const texpar_section_t *s);
-static void parse_conv2d(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator);
-static void parse_avgpool2d(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator);
-static void parse_leaky(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator);
-static void parse_flatten(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator);
-static void parse_linear(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator);
-static void parse_maxpool2d(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator);
-static void parse_shortcut(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator);
-static void parse_pool2d(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator, npx_layer_type_t layer_type);
+static void parse_global_cfg(const cJSON *node, npx_network_t *net);
+static void parse_conv2d(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator);
+static void parse_avgpool2d(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator);
+static void parse_leaky(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator);
+static void parse_flatten(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator);
+static void parse_linear(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator);
+static void parse_maxpool2d(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator);
+static void parse_shortcut(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator);
+static void parse_pool2d(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator, npx_layer_type_t layer_type);
 
 static npx_network_t *npx_network_malloc(int num_layer);
 
-static const int NUM_NON_LAYER = 1;
+static int find_node_index(const cJSON *node_list, const char *name)
+{
+  int index = 0;
+  const cJSON *node;
+  cJSON_ArrayForEach(node, node_list)
+  {
+    const char *node_name = npx_json_find_str(node, "name", NULL);
+    if (node_name && (strcmp(node_name, name) == 0))
+      return index;
+    index++;
+  }
+  assert_msg(0, "%s", name);
+  return -1;
+}
+
+static int find_skip_from(const cJSON *node_list, const cJSON *node, int layer_index)
+{
+  const cJSON *item = cJSON_GetObjectItemCaseSensitive(node, "skip_from");
+  if (item == NULL)
+    return 0;
+  if (cJSON_IsString(item))
+    return find_node_index(node_list, item->valuestring) - layer_index;
+  assert_msg(cJSON_IsNumber(item), "skip_from");
+  return item->valueint;
+}
 
 npx_network_t *npx_parse_network_cfg(const char *net_fname, const char *opt_fname)
 {
-  texpar_list_t *section_list = texpar_read_file_with_section(net_fname);
-  texpar_list_t *opt_section_list = texpar_read_file_with_section(opt_fname);
-  npx_network_t *net = npx_network_malloc(section_list->size - NUM_NON_LAYER);
+  cJSON *net_root = npx_json_read_file(net_fname);
+  cJSON *opt_root = npx_json_read_file(opt_fname);
 
-  /* network info parsing */
-  assert(section_list->front);
-  texpar_section_t *global_section = (texpar_section_t *)section_list->front->val;
-  assert(is_global(global_section));
-  parse_global_cfg(global_section->option_list, net);
-  // texpar_unused(train_option_list);
+  const cJSON *global = cJSON_GetObjectItemCaseSensitive(net_root, "global");
+  const cJSON *net_node_list = cJSON_GetObjectItemCaseSensitive(net_root, "nodes");
+  const cJSON *opt_node_list = cJSON_GetObjectItemCaseSensitive(opt_root, "nodes");
+  assert_msg(cJSON_IsObject(global), "%s", net_fname);
+  assert_msg(cJSON_IsArray(net_node_list), "%s", net_fname);
+  assert_msg(cJSON_IsArray(opt_node_list), "%s", opt_fname);
+  assert_msg(cJSON_GetArraySize(net_node_list) == cJSON_GetArraySize(opt_node_list), "%s %s", net_fname, opt_fname);
 
-  /* layers info parsing */
-  texpar_iter_t *net_iter = section_list->front;
-  texpar_iter_t *opt_iter = opt_section_list->front;
-  for (int i = 0; i < NUM_NON_LAYER; i++)
-    net_iter = net_iter->next;
+  npx_network_t *net = npx_network_malloc(cJSON_GetArraySize(net_node_list));
+  parse_global_cfg(global, net);
 
   int layer_index = 0;
-  // texpar_free_section(net_section);
-  while (net_iter)
+  const cJSON *node;
+  const cJSON *opt_node = opt_node_list->child;
+  cJSON_ArrayForEach(node, net_node_list)
   {
-    const texpar_section_t *net_section = (texpar_section_t *)net_iter->val;
-    texpar_list_t *option_list = net_section->option_list;
-    const texpar_section_t *opt_section = (texpar_section_t *)opt_iter->val;
-    assert(strcmp(net_section->type, opt_section->type) == 0);
+    const char *type = npx_json_find_str(node, "type", "");
+    assert_msg(strcmp(type, npx_json_find_str(opt_node, "type", "")) == 0, "layer %d: %s", layer_index, type);
+    const char *operator = npx_json_copy_str(npx_json_find_str(opt_node, "operator", "cpu"));
+    npx_layer_compute_t *layer_compute = net->layer_compute_seq[layer_index];
 
-    char *operator = texpar_find_str(opt_section->option_list, "operator", "cpu");
-    // printf("\nlayer %02d: %s --> %s", layer_index, net_section->type, operator);
-
-    if (strcmp(net_section->type, "[Conv2d]") == 0)
+    if (strcmp(type, "Conv2d") == 0)
+      parse_conv2d(layer_compute, node, operator);
+    else if (strcmp(type, "Linear") == 0)
+      parse_linear(layer_compute, node, operator);
+    else if (strcmp(type, "Leaky") == 0)
+      parse_leaky(layer_compute, node, operator);
+    else if (strcmp(type, "MaxPool2d") == 0)
+      parse_maxpool2d(layer_compute, node, operator);
+    else if (strcmp(type, "AvgPool2d") == 0)
+      parse_avgpool2d(layer_compute, node, operator);
+    else if (strcmp(type, "Flatten") == 0)
+      parse_flatten(layer_compute, node, operator);
+    else if (strcmp(type, "Shortcut") == 0)
     {
-      parse_conv2d(net->layer_compute_seq[layer_index], option_list, operator);
-    }
-    else if (strcmp(net_section->type, "[Linear]") == 0)
-    {
-      parse_linear(net->layer_compute_seq[layer_index], option_list, operator);
-    }
-    else if (strcmp(net_section->type, "[Leaky]") == 0)
-    {
-      parse_leaky(net->layer_compute_seq[layer_index], option_list, operator);
-    }
-    else if (strcmp(net_section->type, "[MaxPool2d]") == 0)
-    {
-      parse_maxpool2d(net->layer_compute_seq[layer_index], option_list, operator);
-    }
-    else if (strcmp(net_section->type, "[AvgPool2d]") == 0)
-    {
-      parse_avgpool2d(net->layer_compute_seq[layer_index], option_list, operator);
-    }
-    else if (strcmp(net_section->type, "[Flatten]") == 0)
-    {
-      parse_flatten(net->layer_compute_seq[layer_index], option_list, operator);
-    }
-    else if (strcmp(net_section->type, "[Shortcut]") == 0)
-    {
-      parse_shortcut(net->layer_compute_seq[layer_index], option_list, operator);
+      parse_shortcut(layer_compute, node, operator);
+      ((npx_shortcut_layer_t *)(layer_compute->layer))->skip_from = find_skip_from(net_node_list, node, layer_index);
+      assert(((npx_shortcut_layer_t *)(layer_compute->layer))->skip_from < 0);
     }
     else
-      assert(0);
+      assert_msg(0, "%s", type);
 
-    // texpar_free_section(net_section);
-    // texpar_free_section(opt_section);
-    net_iter = net_iter->next;
-    opt_iter = opt_iter->next;
+    opt_node = opt_node->next;
     layer_index++;
   }
-  // free_list(section_list);
-  // free_list(opt_section_list);
+  cJSON_Delete(net_root);
+  cJSON_Delete(opt_root);
 
   for (int i = 0; i < net->num_layer; i++)
   {
@@ -128,57 +133,30 @@ static npx_network_t *npx_network_malloc(int num_layer)
   return net;
 }
 
-// atoi stops at the first non-digit, so the option string is read without being modified
-static void set_array_from_str(const char *size_str, int *size_array, int num)
+static void parse_global_cfg(const cJSON *node, npx_network_t *net)
 {
-  if (size_str[0] == '(')
-    size_str++;
-  for (int i = 0; i < num; i++)
-  {
-    assert(*size_str);
-    size_array[num - 1 - i] = atoi(size_str);
-    while (*size_str && (*size_str != ','))
-      size_str++;
-    if (*size_str == ',')
-      size_str++;
-  }
-}
-
-static void parse_global_cfg(texpar_list_t *option_list, npx_network_t *net)
-{
-  char *input_size_str = texpar_find_str(option_list, "input_size", "28,28");
-  int input_channels = texpar_find_int_quiet(option_list, "input_channels", 1);
-  int classes = texpar_find_int_quiet(option_list, "output_classes", 1);
-
   int size[2];
-  set_array_from_str(input_size_str, size, 2);
+  npx_json_find_size(node, "input_size", size, 2);
   net->h = size[0];
   net->w = size[1];
-  net->c = input_channels;
-  net->classes = classes;
+  net->c = npx_json_find_int(node, "input_channels", 1);
+  net->classes = npx_json_find_int(node, "output_classes", 1);
 
   rvx_log_info("NPX", "h,w,c: %d,%d,%d", net->h, net->w, net->c);
   rvx_log_info("NPX", "output_classes: %d", net->classes);
 }
 
-static int is_global(const texpar_section_t *section)
+static void parse_iodata2d(npx_layer2d_iodata_t *iodata, const cJSON *node)
 {
-  return (strcmp(section->type, "[global]") == 0);
-}
-
-static void parse_iodata2d(npx_layer2d_iodata_t *iodata, texpar_list_t *option_list)
-{
-  iodata->in_channels = texpar_find_int_quiet(option_list, "in_channels", 0);
-  iodata->out_channels = texpar_find_int_quiet(option_list, "out_channels", 0);
-  char *input_size_str = texpar_find_str(option_list, "in_size", "");
-  char *output_size_str = texpar_find_str(option_list, "out_size", "");
-  set_array_from_str(input_size_str, iodata->in_size, 2);
-  set_array_from_str(output_size_str, iodata->out_size, 2);
-  iodata->in_is_quantized = texpar_find_int_quiet(option_list, "in_is_quantized", -1);
-  iodata->out_is_quantized = texpar_find_int_quiet(option_list, "out_is_quantized", -1);
-  iodata->in_is_binary = texpar_find_int_quiet(option_list, "in_is_binary", -1);
-  iodata->out_is_binary = texpar_find_int_quiet(option_list, "out_is_binary", -1);
-  iodata->out_maxvalue = texpar_find_int_quiet(option_list, "out_maxvalue", -1);
+  iodata->in_channels = npx_json_find_int(node, "in_channels", 0);
+  iodata->out_channels = npx_json_find_int(node, "out_channels", 0);
+  npx_json_find_size(node, "in_size", iodata->in_size, 2);
+  npx_json_find_size(node, "out_size", iodata->out_size, 2);
+  iodata->in_is_quantized = npx_json_find_int(node, "in_is_quantized", -1);
+  iodata->out_is_quantized = npx_json_find_int(node, "out_is_quantized", -1);
+  iodata->in_is_binary = npx_json_find_int(node, "in_is_binary", -1);
+  iodata->out_is_binary = npx_json_find_int(node, "out_is_binary", -1);
+  iodata->out_maxvalue = npx_json_find_int(node, "out_maxvalue", -1);
 
   assert(iodata->in_channels > 0);
   assert(iodata->out_channels > 0);
@@ -203,9 +181,9 @@ static void parse_iodata2d(npx_layer2d_iodata_t *iodata, texpar_list_t *option_l
     iodata->out_datatype = MATRIX_DATATYPE_FLOAT32;
 }
 
-static int get_weight_datatype(texpar_list_t *option_list)
+static int get_weight_datatype(const cJSON *node)
 {
-  const char *neuron_type = texpar_find_str(option_list, "neuron_type", "");
+  const char *neuron_type = npx_json_find_str(node, "neuron_type", "");
   assert_msg(neuron_type[0] == 'w', "%s", neuron_type);
   if (neuron_type[1] == 'f')
     return MATRIX_DATATYPE_FLOAT32;
@@ -229,15 +207,15 @@ static void _transpose_matrix_info(ErvpMatrixInfo **src_info_list, ErvpMatrixInf
       dst_info_list[j * row + i] = src_info_list[i * col + j];
 }
 
-static void parse_conv2d(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator)
+static void parse_conv2d(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator)
 {
   npx_conv2d_layer_t *conv2d_layer = (npx_conv2d_layer_t *)calloc(1, sizeof(npx_conv2d_layer_t));
   layer_compute->layer_type = NPXL_CONV2D;
   layer_compute->layer = conv2d_layer;
-  conv2d_layer->kernel_size = texpar_find_int_quiet(option_list, "kernel_size", 0);
-  conv2d_layer->stride = texpar_find_int_quiet(option_list, "stride", 1);
+  conv2d_layer->kernel_size = npx_json_find_int(node, "kernel_size", 0);
+  conv2d_layer->stride = npx_json_find_int(node, "stride", 1);
 
-  int pad_amount = texpar_find_int_quiet(option_list, "padding", 0);
+  int pad_amount = npx_json_find_int(node, "padding", 0);
   conv2d_layer->pad_options.value = 0;
   conv2d_layer->pad_options.br.num_bottom = pad_amount;
   conv2d_layer->pad_options.br.num_top = pad_amount;
@@ -248,14 +226,14 @@ static void parse_conv2d(npx_layer_compute_t *layer_compute, texpar_list_t *opti
   else
     conv2d_layer->pad_options.br.mode = PADMODE_ZEROS;
 
-  conv2d_layer->groups = texpar_find_int_quiet(option_list, "groups", 1);
+  conv2d_layer->groups = npx_json_find_int(node, "groups", 1);
 
   assert(conv2d_layer->kernel_size > 0);
   assert(conv2d_layer->stride > 0);
   assert(conv2d_layer->stride < 16);
   assert(conv2d_layer->groups > 0);
 
-  parse_iodata2d(&(conv2d_layer->iodata), option_list);
+  parse_iodata2d(&(conv2d_layer->iodata), node);
 
   assert((conv2d_layer->iodata.in_channels % conv2d_layer->groups) == 0);
   assert((conv2d_layer->iodata.out_channels % conv2d_layer->groups) == 0);
@@ -270,7 +248,7 @@ static void parse_conv2d(npx_layer_compute_t *layer_compute, texpar_list_t *opti
   npx_tensor_set_size(conv2d_layer->weight_tensor, 1, conv2d_layer->kernel_size);
   npx_tensor_set_size(conv2d_layer->weight_tensor, 2, conv2d_layer->in_channels_per_group);
   npx_tensor_set_size(conv2d_layer->weight_tensor, 3, conv2d_layer->iodata.out_channels);
-  npx_tensor_set_datatype(conv2d_layer->weight_tensor, get_weight_datatype(option_list));
+  npx_tensor_set_datatype(conv2d_layer->weight_tensor, get_weight_datatype(node));
   npx_tensor_alloc_data(conv2d_layer->weight_tensor);
 
   conv2d_layer->weight_matrix_info_list_for_output_reuse = npx_tensor_generate_matrix_info_list(conv2d_layer->weight_tensor, 1, num_weight_matrix);
@@ -290,32 +268,29 @@ static void parse_conv2d(npx_layer_compute_t *layer_compute, texpar_list_t *opti
     layer_compute->forward = npx_forward_conv2d_layer_default;
 }
 
-static void parse_shortcut(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator)
+static void parse_shortcut(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator)
 {
   npx_shortcut_layer_t *shortcut_layer = (npx_shortcut_layer_t *)calloc(1, sizeof(npx_shortcut_layer_t));
   layer_compute->layer_type = NPXL_SHORTCUT;
   layer_compute->layer = shortcut_layer;
 
-  shortcut_layer->skip_from = texpar_find_int_quiet(option_list, "skip_from", 0);
-  assert(shortcut_layer->skip_from < 0);
-
-  const char *shortcut_type = texpar_find_str(option_list, "type", "Identity");
+  const char *shortcut_type = npx_json_find_str(node, "op", "Identity");
   if (strcmp(shortcut_type, "Identity") == 0)
   {
     shortcut_layer->shortcut_type = NPXL_IDENTITY;
     shortcut_layer->layer = NULL;
-    parse_iodata2d(&(shortcut_layer->iodata), option_list);
+    parse_iodata2d(&(shortcut_layer->iodata), node);
   }
   else
   {
     npx_layer_compute_t inner_layer_compute;
     memset(&inner_layer_compute, 0, sizeof(npx_layer_compute_t));
     if (strcmp(shortcut_type, "Conv2d") == 0)
-      parse_conv2d(&inner_layer_compute, option_list, operator);
+      parse_conv2d(&inner_layer_compute, node, operator);
     else if (strcmp(shortcut_type, "MaxPool2d") == 0)
-      parse_pool2d(&inner_layer_compute, option_list, operator, NPXL_MAXPOOL2D);
+      parse_pool2d(&inner_layer_compute, node, operator, NPXL_MAXPOOL2D);
     else if (strcmp(shortcut_type, "AvgPool2d") == 0)
-      parse_pool2d(&inner_layer_compute, option_list, operator, NPXL_AVGPOOL2D);
+      parse_pool2d(&inner_layer_compute, node, operator, NPXL_AVGPOOL2D);
     else
       assert(0);
     shortcut_layer->shortcut_type = inner_layer_compute.layer_type;
@@ -339,15 +314,15 @@ static void parse_shortcut(npx_layer_compute_t *layer_compute, texpar_list_t *op
   layer_compute->forward = npx_forward_shortcut_layer_default;
 }
 
-static void parse_pool2d(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator, npx_layer_type_t layer_type)
+static void parse_pool2d(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator, npx_layer_type_t layer_type)
 {
   npx_pool2d_layer_t *pool2d_layer = (npx_pool2d_layer_t *)calloc(1, sizeof(npx_pool2d_layer_t));
   layer_compute->layer_type = layer_type;
   layer_compute->layer = pool2d_layer;
-  pool2d_layer->kernel_size = texpar_find_int_quiet(option_list, "kernel_size", 0);
-  pool2d_layer->stride = texpar_find_int_quiet(option_list, "stride", 1);
+  pool2d_layer->kernel_size = npx_json_find_int(node, "kernel_size", 0);
+  pool2d_layer->stride = npx_json_find_int(node, "stride", 1);
 
-  const int pad_amount = texpar_find_int_quiet(option_list, "padding", 0);
+  const int pad_amount = npx_json_find_int(node, "padding", 0);
   pool2d_layer->pad_options.value = 0;
   pool2d_layer->pad_options.br.num_bottom = pad_amount;
   pool2d_layer->pad_options.br.num_top = pad_amount;
@@ -363,7 +338,7 @@ static void parse_pool2d(npx_layer_compute_t *layer_compute, texpar_list_t *opti
   assert(pool2d_layer->stride < 16);
   assert(pool2d_layer->kernel_size == pool2d_layer->stride);
 
-  parse_iodata2d(&(pool2d_layer->iodata), option_list);
+  parse_iodata2d(&(pool2d_layer->iodata), node);
 
   layer_compute->operator = operator;
   switch (layer_type)
@@ -382,27 +357,26 @@ static void parse_pool2d(npx_layer_compute_t *layer_compute, texpar_list_t *opti
   }
 }
 
-static void parse_avgpool2d(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator)
+static void parse_avgpool2d(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator)
 {
-  parse_pool2d(layer_compute, option_list, operator, NPXL_SUMPOOL2D);
+  parse_pool2d(layer_compute, node, operator, NPXL_SUMPOOL2D);
 }
 
-static void parse_leaky(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator)
+static void parse_leaky(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator)
 {
   npx_leaky_layer_t *leaky_layer = (npx_leaky_layer_t *)calloc(1, sizeof(npx_leaky_layer_t));
   layer_compute->layer_type = NPXL_LEAKY;
   layer_compute->layer = leaky_layer;
 
-  leaky_layer->reset_mechanism = texpar_find_str(option_list, "reset_mechanism", "");
-  leaky_layer->reset_delay = texpar_find_str(option_list, "reset_delay", "");
+  leaky_layer->reset_mechanism = npx_json_copy_str(npx_json_find_str(node, "reset_mechanism", ""));
+  leaky_layer->has_reset_delay = npx_json_find_bool(node, "reset_delay", 0);
+  leaky_layer->reset_delay = leaky_layer->has_reset_delay ? "True" : "False";
 
-  //
   leaky_layer->is_hard_reset = (strcmp(leaky_layer->reset_mechanism, "zero") == 0);
   leaky_layer->is_soft_reset = (strcmp(leaky_layer->reset_mechanism, "subtract") == 0);
   assert(leaky_layer->is_hard_reset || leaky_layer->is_soft_reset);
-  leaky_layer->has_reset_delay = (strcmp(leaky_layer->reset_delay, "True") == 0);
 
-  parse_iodata2d(&(leaky_layer->iodata), option_list);
+  parse_iodata2d(&(leaky_layer->iodata), node);
 
   int num_channel = leaky_layer->iodata.in_channels;
   ervp_matrix_datatype_t datatype = leaky_layer->iodata.in_is_quantized ? MATRIX_DATATYPE_SINT32 : MATRIX_DATATYPE_FLOAT32;
@@ -425,36 +399,36 @@ static void parse_leaky(npx_layer_compute_t *layer_compute, texpar_list_t *optio
   layer_compute->forward = npx_forward_leaky_layer_default;
 }
 
-static void parse_flatten(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator)
+static void parse_flatten(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator)
 {
   npx_flatten_layer_t *flatten_layer = (npx_flatten_layer_t *)calloc(1, sizeof(npx_flatten_layer_t));
   layer_compute->layer_type = NPXL_FLATTEN;
   layer_compute->layer = flatten_layer;
 
-  parse_iodata2d(&(flatten_layer->iodata), option_list);
+  parse_iodata2d(&(flatten_layer->iodata), node);
 
   layer_compute->operator = operator;
   layer_compute->forward = npx_forward_flatten_layer_default;
 }
 
-static void parse_linear(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator)
+static void parse_linear(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator)
 {
   npx_linear_layer_t *linear_layer = (npx_linear_layer_t *)calloc(1, sizeof(npx_linear_layer_t));
   layer_compute->layer_type = NPXL_LINEAR;
   layer_compute->layer = linear_layer;
-  linear_layer->in_features = texpar_find_int_quiet(option_list, "in_features", 0);
-  linear_layer->out_features = texpar_find_int_quiet(option_list, "out_features", 0);
+  linear_layer->in_features = npx_json_find_int(node, "in_features", 0);
+  linear_layer->out_features = npx_json_find_int(node, "out_features", 0);
 
   assert(linear_layer->in_features >= 0);
   assert(linear_layer->out_features >= 0);
 
-  parse_iodata2d(&(linear_layer->iodata), option_list);
+  parse_iodata2d(&(linear_layer->iodata), node);
 
   // weight
   linear_layer->weight_tensor = npx_tensor_alloc_wo_data(2);
   npx_tensor_set_size(linear_layer->weight_tensor, 0, linear_layer->in_features);
   npx_tensor_set_size(linear_layer->weight_tensor, 1, linear_layer->out_features);
-  npx_tensor_set_datatype(linear_layer->weight_tensor, get_weight_datatype(option_list));
+  npx_tensor_set_datatype(linear_layer->weight_tensor, get_weight_datatype(node));
   npx_tensor_alloc_data(linear_layer->weight_tensor);
 
   linear_layer->transposed_weight_matrix = matrix_alloc(linear_layer->weight_tensor->datatype, linear_layer->in_features, linear_layer->out_features);
@@ -463,7 +437,7 @@ static void parse_linear(npx_layer_compute_t *layer_compute, texpar_list_t *opti
   layer_compute->forward = npx_forward_linear_layer_default;
 }
 
-static void parse_maxpool2d(npx_layer_compute_t *layer_compute, texpar_list_t *option_list, const char *operator)
+static void parse_maxpool2d(npx_layer_compute_t *layer_compute, const cJSON *node, const char *operator)
 {
-  parse_pool2d(layer_compute, option_list, operator, NPXL_MAXPOOL2D);
+  parse_pool2d(layer_compute, node, operator, NPXL_MAXPOOL2D);
 }

@@ -146,7 +146,7 @@ void fakefile_prepare_dump()
         for(int i=0; i<file_size; i++)
           *((uint8_t*)pt++) = ffgetc(fp);
         ffclose(fp);
-        pt = (void*)round_up_int((int)pt, 4);
+        pt = (void*)round_up_uint((unsigned int)pt, 4);
       }
     }
     assert((pt-addr)==total_size);

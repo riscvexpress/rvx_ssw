@@ -2,8 +2,7 @@
 #define __NPX_PARSER_H__
 
 #include "ervp_fakefile.h"
-#include "texpar_list.h"
-#include "texpar_api.h"
+#include "npx_json.h"
 #include "npx_struct.h"
 
 #ifdef __cplusplus

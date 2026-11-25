@@ -5,8 +5,7 @@
 #include "ervp_memory_util.h"
 #include "ervp_fakefile.h"
 
-#include "texpar_list.h"
-#include "texpar_api.h"
+#include "npx_json.h"
 
 #include "npx_preprocess.h"
 #include "npx_util.h"
@@ -16,9 +15,9 @@
 #include "npx_waveform.h"
 #include "npx_profiling.h"
 
-static npx_layerio_tsseq_t *npx_mnist_preprocess(const npx_network_t *net, NpxTensorInfo *input, texpar_list_t *option_list);
-static npx_layerio_tsseq_t *npx_dvsgesture_preprocess(const npx_network_t *net, NpxTensorInfo *input, texpar_list_t *option_list);
-static npx_layerio_tsseq_t *npx_waveform_preprocess(const npx_network_t *net, NpxTensorInfo *input, texpar_list_t *option_list);
+static npx_layerio_tsseq_t *npx_mnist_preprocess(const npx_network_t *net, NpxTensorInfo *input, const cJSON *option);
+static npx_layerio_tsseq_t *npx_dvsgesture_preprocess(const npx_network_t *net, NpxTensorInfo *input, const cJSON *option);
+static npx_layerio_tsseq_t *npx_waveform_preprocess(const npx_network_t *net, NpxTensorInfo *input, const cJSON *option);
 static NpxTensorInfo *generate_single_step_by_lfsr(const NpxTensorInfo *input);
 static NpxTensorInfo *generate_single_step(const NpxTensorInfo *input, const char *step_generation);
 
@@ -31,39 +30,34 @@ npx_preprocess(const char *pre_fname, const npx_network_t *net, const NpxTensorI
   assert(input);
   assert(input_scale > 0);
 
-  texpar_list_t *section_list = texpar_read_file_with_section(pre_fname);
-  texpar_section_t *s = (texpar_section_t *)section_list->front->val;
-  texpar_list_t *option_list = s->option_list;
-
-  assert(strcmp(s->type, "[preprocess]") == 0);
-  const char *input_str = texpar_find_str(option_list, "input", NULL);
+  cJSON *root = npx_json_read_file(pre_fname);
+  const cJSON *option = npx_json_get_object(root, "preprocess", pre_fname);
+  const char *input_str = npx_json_find_str(option, "input", NULL);
   assert(input_str);
   rvx_log_info("NPX", "preprocess: %s", input_str);
 
   npx_layerio_tsseq_t *input_tsseq = NULL;
   if ((strcmp(input_str, "mnist_opendataset") == 0) || (strcmp(input_str, "fmnist_opendataset") == 0) || (strcmp(input_str, "cifar10_opendataset") == 0) || (strcmp(input_str, "gtsrb_opendataset") == 0) || (strcmp(input_str, "channelresponse_dataset") == 0))
   {
-    input_tsseq = npx_mnist_preprocess(net, input, option_list);
+    input_tsseq = npx_mnist_preprocess(net, input, option);
   }
   else if (strcmp(input_str, "dvsgesture_opendataset") == 0)
   {
-    input_tsseq = npx_dvsgesture_preprocess(net, input, option_list);
+    input_tsseq = npx_dvsgesture_preprocess(net, input, option);
   }
   else if (strcmp(input_str, "dvs346") == 0)
   {
-    int timesteps = texpar_find_int_quiet(option_list, "timesteps", 0);
+    int timesteps = npx_json_find_int(option, "timesteps", 0);
     input_tsseq = npx_dvs346_preprocess(net, input, timesteps);
   }
   else if (strcmp(input_str, "speechcommands_opendataset") == 0)
   {
-    input_tsseq = npx_waveform_preprocess(net, input, option_list);
+    input_tsseq = npx_waveform_preprocess(net, input, option);
   }
   else
     assert_msg(0, "%s", input_str);
 
-  // texpar_unused(option_list);
-  // texpar_free_section(s);
-  // free_list(section_list);
+  cJSON_Delete(root);
 
   input_tsseq->scaled = input_scale;
   NPX_PROFILING_END();
@@ -71,10 +65,10 @@ npx_preprocess(const char *pre_fname, const npx_network_t *net, const NpxTensorI
   return input_tsseq;
 }
 
-npx_layerio_tsseq_t *npx_mnist_preprocess(const npx_network_t *net, NpxTensorInfo *input, texpar_list_t *option_list)
+npx_layerio_tsseq_t *npx_mnist_preprocess(const npx_network_t *net, NpxTensorInfo *input, const cJSON *option)
 {
-  int timesteps = texpar_find_int_quiet(option_list, "timesteps", 0);
-  const char *step_generation = texpar_find_str(option_list, "step_generation", "");
+  int timesteps = npx_json_find_int(option, "timesteps", 0);
+  const char *step_generation = npx_json_find_str(option, "step_generation", "");
 
   assert(timesteps > 0);
   assert(strcmp(step_generation, "") != 0);
@@ -92,9 +86,9 @@ npx_layerio_tsseq_t *npx_mnist_preprocess(const npx_network_t *net, NpxTensorInf
   return input_tsseq;
 }
 
-npx_layerio_tsseq_t *npx_dvsgesture_preprocess(const npx_network_t *net, NpxTensorInfo *input, texpar_list_t *option_list)
+npx_layerio_tsseq_t *npx_dvsgesture_preprocess(const npx_network_t *net, NpxTensorInfo *input, const cJSON *option)
 {
-  int timesteps = texpar_find_int_quiet(option_list, "timesteps", 0);
+  int timesteps = npx_json_find_int(option, "timesteps", 0);
   assert(timesteps > 0);
 
   NpxTensorInfo *frame = npx_dvs_to_frame(input, 260, 346, timesteps, NULL);
@@ -120,11 +114,11 @@ npx_layerio_tsseq_t *npx_dvsgesture_preprocess(const npx_network_t *net, NpxTens
   return input_tsseq;
 }
 
-npx_layerio_tsseq_t *npx_waveform_preprocess(const npx_network_t *net, NpxTensorInfo *input, texpar_list_t *option_list)
+npx_layerio_tsseq_t *npx_waveform_preprocess(const npx_network_t *net, NpxTensorInfo *input, const cJSON *option)
 {
-  int timesteps = texpar_find_int_quiet(option_list, "timesteps", 0);
-  const char *step_generation = texpar_find_str(option_list, "step_generation", "");
-  const char *feature = texpar_find_str(option_list, "feature", "");
+  int timesteps = npx_json_find_int(option, "timesteps", 0);
+  const char *step_generation = npx_json_find_str(option, "step_generation", "");
+  const char *feature = npx_json_find_str(option, "feature", "");
 
   assert(timesteps > 0);
   assert(strcmp(step_generation, "") != 0);
@@ -132,8 +126,8 @@ npx_layerio_tsseq_t *npx_waveform_preprocess(const npx_network_t *net, NpxTensor
   NpxTensorInfo *preprocessed_input = input;
   if (strcmp(feature, "mel_spectrogram") == 0)
   {
-    npx_set_mel_spectorgram(option_list);
-    preprocessed_input = npx_log_mel_spectrogram(input, option_list);
+    npx_set_mel_spectorgram(option);
+    preprocessed_input = npx_log_mel_spectrogram(input, option);
   }
 
   npx_layerio_tsseq_t *input_tsseq = npx_layerio_tsseq_alloc(timesteps);
@@ -174,9 +168,9 @@ static NpxTensorInfo *generate_single_step(const NpxTensorInfo *input, const cha
   return output;
 }
 
-npx_layerio_tsseq_t *npx_dvs_preprocess(const npx_network_t *net, const NpxTensorInfo *input, texpar_list_t *option_list)
+npx_layerio_tsseq_t *npx_dvs_preprocess(const npx_network_t *net, const NpxTensorInfo *input, const cJSON *option)
 {
-  int timesteps = texpar_find_int_quiet(option_list, "timesteps", 0);
+  int timesteps = npx_json_find_int(option, "timesteps", 0);
   assert(timesteps > 0);
 
   NpxTensorInfo *frame = npx_dvs_to_frame(input, 128, 128, timesteps, NULL);

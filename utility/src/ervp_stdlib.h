@@ -24,8 +24,17 @@ static inline int isspace_rvx(int c)
          (c == '\r');
 }
 
+#define tolower tolower_rvx
+static inline int tolower_rvx(int c)
+{
+  return (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
+}
+
 #define strtol strtol_rvx
 long strtol_rvx(const char *nptr, char **endptr, int base);
+
+#define strtod strtod_rvx
+double strtod_rvx(const char *nptr, char **endptr);
 
 #define atoi atoi_rvx
 int atoi_rvx(const char *str);

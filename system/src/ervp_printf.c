@@ -115,6 +115,7 @@
 #define FLAGS_LONG_LONG (1U <<  9U)
 #define FLAGS_PRECISION (1U << 10U)
 #define FLAGS_ADAPT_EXP (1U << 11U)
+#define FLAGS_TRIM_ZEROS (1U << 12U)
 
 
 // import float.h for DBL_MAX
@@ -451,6 +452,19 @@ static size_t _ftoa(out_fct_type out, char* buffer, size_t idx, size_t maxlen, d
       // add decimal
       buf[len++] = '.';
     }
+    if (flags & FLAGS_TRIM_ZEROS) {
+      size_t skip = 0U;
+      while ((skip < len) && (buf[skip] == '0')) {
+        skip++;
+      }
+      if ((skip < len) && (buf[skip] == '.')) {
+        skip++;
+      }
+      for (size_t i = skip; i < len; i++) {
+        buf[i - skip] = buf[i];
+      }
+      len -= skip;
+    }
   }
 
   // do whole part, number is reversed
@@ -579,7 +593,11 @@ static size_t _etoa(out_fct_type out, char* buffer, size_t idx, size_t maxlen, d
 
   // output the floating part
   const size_t start_idx = idx;
-  idx = _ftoa(out, buffer, idx, maxlen, negative ? -value : value, prec, fwidth, flags & ~FLAGS_ADAPT_EXP);
+  unsigned int ftoa_flags = flags & ~FLAGS_ADAPT_EXP;
+  if ((flags & FLAGS_ADAPT_EXP) && !(flags & FLAGS_HASH)) {
+    ftoa_flags |= FLAGS_TRIM_ZEROS;
+  }
+  idx = _ftoa(out, buffer, idx, maxlen, negative ? -value : value, prec, fwidth, ftoa_flags);
 
   // output the exponent part
   if (minwidth) {

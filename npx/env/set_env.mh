@@ -2,3 +2,6 @@ C_SRC += $(wildcard ${RVX_SSW_HOME}/npx/src/*.c)
 INCLUDES += -I${RVX_SSW_HOME}/npx/src
 include ${RVX_SSW_HOME}/third_party/sptk/env/set_env.mh
 CFLAGS += -DUSE_NPX
+ifneq ($(USE_CJSON),true)
+include ${RVX_SSW_HOME}/third_party/cjson/env/set_env.mh
+endif

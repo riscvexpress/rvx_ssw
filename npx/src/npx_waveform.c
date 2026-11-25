@@ -5,31 +5,30 @@
 #include "ervp_assert.h"
 #include "ervp_malloc.h"
 #include "ervp_stdlib.h"
-#include "texpar_api.h"
 
 #include "SPTK.h"
 
 #include "npx_waveform.h"
 
-void npx_set_mel_spectorgram(texpar_list_t *option_list)
+void npx_set_mel_spectorgram(const cJSON *option)
 {
-  int sample_rate = texpar_find_int_quiet(option_list, "mel_spectrogram.sample_rate", 16000);
-  int n_fft = texpar_find_int_quiet(option_list, "mel_spectrogram.n_fft", 512);
-  int win_length = texpar_find_int_quiet(option_list, "mel_spectrogram.win_length", 400);
-  int n_mels = texpar_find_int_quiet(option_list, "mel_spectrogram.n_mels", 40);
+  int sample_rate = npx_json_find_int(option, "mel_spectrogram.sample_rate", 16000);
+  int n_fft = npx_json_find_int(option, "mel_spectrogram.n_fft", 512);
+  int win_length = npx_json_find_int(option, "mel_spectrogram.win_length", 400);
+  int n_mels = npx_json_find_int(option, "mel_spectrogram.n_mels", 40);
 
   init_window(HAMMING, win_length, 0);
   init_mel_filter_banks(sample_rate, n_fft, n_mels);
 }
 
-NpxTensorInfo *npx_log_mel_spectrogram(NpxTensorInfo *input, texpar_list_t *option_list)
+NpxTensorInfo *npx_log_mel_spectrogram(NpxTensorInfo *input, const cJSON *option)
 {
-  int num_samples = texpar_find_int_quiet(option_list, "mel_spectrogram.num_samples", 16000);
-  int sample_rate = texpar_find_int_quiet(option_list, "mel_spectrogram.sample_rate", 16000);
-  int n_fft = texpar_find_int_quiet(option_list, "mel_spectrogram.n_fft", 512);
-  int win_length = texpar_find_int_quiet(option_list, "mel_spectrogram.win_length", 400);
-  int hop_length = texpar_find_int_quiet(option_list, "mel_spectrogram.hop_length", 160);
-  int n_mels = texpar_find_int_quiet(option_list, "mel_spectrogram.n_mels", 40);
+  int num_samples = npx_json_find_int(option, "mel_spectrogram.num_samples", 16000);
+  int sample_rate = npx_json_find_int(option, "mel_spectrogram.sample_rate", 16000);
+  int n_fft = npx_json_find_int(option, "mel_spectrogram.n_fft", 512);
+  int win_length = npx_json_find_int(option, "mel_spectrogram.win_length", 400);
+  int hop_length = npx_json_find_int(option, "mel_spectrogram.hop_length", 160);
+  int n_mels = npx_json_find_int(option, "mel_spectrogram.n_mels", 40);
 
   assert(npx_tensor_get_size(input, 1) == 1);
   assert(npx_tensor_get_size(input, 2) == 1);

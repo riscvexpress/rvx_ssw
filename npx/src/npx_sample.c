@@ -7,15 +7,13 @@
 
 #include <string.h>
 
-#include "texpar_list.h"
-#include "texpar_api.h"
+#include "npx_json.h"
 
 #include "npx_sample.h"
 #include "npx_util.h"
 #include "npx_tensor.h"
 #include "npx_dvs.h"
 
-static npx_rawinput_t *npx_load_sample_matrix(const char *filename, texpar_list_t *option_list);
 static npx_rawinput_t *npx_load_mnist_dataset(const char *filename);
 static npx_rawinput_t *npx_load_cifar10_dataset(const char *filename);
 static npx_rawinput_t *npx_load_dvsgesture_dataset(const char *filename);
@@ -25,12 +23,8 @@ static npx_rawinput_t *npx_load_speechcommands_dataset(const char *filename);
 __attribute__((weak))
 npx_rawinput_t *npx_load_sample(const char *filename, const char *pre_fname)
 {
-  texpar_list_t *section_list = texpar_read_file_with_section(pre_fname);
-  texpar_section_t *s = (texpar_section_t *)section_list->front->val;
-  texpar_list_t *option_list = s->option_list;
-
-  assert(strcmp(s->type, "[preprocess]") == 0);
-  char *input_str = texpar_find_str(option_list, "input", NULL);
+  cJSON *root = npx_json_read_file(pre_fname);
+  const char *input_str = npx_json_find_str(npx_json_get_object(root, "preprocess", pre_fname), "input", NULL);
   assert(input_str);
 
   npx_rawinput_t *npx_sample;
@@ -59,6 +53,7 @@ npx_rawinput_t *npx_load_sample(const char *filename, const char *pre_fname)
     assert_msg(0, "\nunsupported input: %s", input_str);
   }
   rvx_log_info("NPX", "sample: %s (%s)", filename, input_str);
+  cJSON_Delete(root);
   return npx_sample;
 }
 

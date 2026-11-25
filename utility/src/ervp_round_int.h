@@ -15,6 +15,20 @@ static inline int round_up_int(int value, int step)
   return result;
 };
 
+static inline unsigned int round_up_uint(unsigned int value, unsigned int step)
+{
+  unsigned int result;
+  unsigned int residue;
+  result = value;
+  if(step>1)
+  {
+    residue = value % step;
+    if(residue!=0)
+      result += (step-residue);
+  }
+  return result;
+};
+
 static inline int round_down_int(int value, int step)
 {
   int result;
